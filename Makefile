@@ -4,7 +4,7 @@ GHCFLAGS = -dynamic
 
 .PHONY: $(TARGET)
 $(TARGET):
-	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ src/Main.hs
+	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ --make src/Main.hs
 
 .PHONY: clean
 clean:
