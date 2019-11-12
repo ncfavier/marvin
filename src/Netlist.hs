@@ -7,10 +7,10 @@ import Text.Read hiding ((<++))
 
 type Variable = String
 
-newtype Value = V { unV :: [Bool] }
+newtype Value = Value [Bool]
 
 instance Show Value where
-    show (V l) = bool '0' '1' <$> l
+    show (Value l) = bool '0' '1' <$> l
 
 instance Read Value where
     readPrec = lift value
@@ -62,7 +62,7 @@ varAndSize = do
 
 value = token $ do
     l <- many1 $ (False <$ char '0' <++ char 'f') <++ (True <$ char '1' <++ char 't')
-    return (V l)
+    return (Value l)
 
 argument = (Avar <$> identifier) <++ (Aconst <$> value)
 
