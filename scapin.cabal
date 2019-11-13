@@ -1,0 +1,19 @@
+name:                scapin
+version:             0
+synopsis:            Microprocessor simulator for the digital electronics project at ENS
+homepage:            https://git.monade.li/scapin
+license:             AGPL-3
+license-file:        LICENSE
+author:              Naïm Favier
+maintainer:          n@monade.li
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+executable simulator
+  main-is:             Simulator.hs
+  other-modules:       Netlist
+  other-extensions:    TypeApplications
+  build-depends:       base >=4.12 && <4.13, array >=0.5 && <0.6, bytestring >=0.10 && <0.11, containers >=0.6 && <0.7
+  hs-source-dirs:      src
+  default-language:    Haskell2010

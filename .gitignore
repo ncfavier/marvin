@@ -1,4 +1,6 @@
 build
+dist*
+.ghc*
 test
 simulator
 rom.bin

@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
 import Control.Exception
 import Control.Monad
@@ -31,7 +32,8 @@ bitFromBool = bool zeroBits (bit 0)
 
 bitsFromListBE = foldl (\n b -> (n `shiftL` 1) .|. bitFromBool b) zeroBits
 
-bitsToListBE b = let s = finiteBitSize b in [testBit b i | i <- [s - 1, s - 2..0]]
+bitsToListBE b = [testBit b i | i <- [s - 1, s - 2..0]]
+    where s = finiteBitSize b
 
 listBEFromFile f = either (const []) (\b -> B.unpack b >>= bitsToListBE) <$>
     tryJust (guard . isDoesNotExistError) (B.readFile f)
@@ -55,7 +57,7 @@ getValue x s = f where
 main = do
     -- Process command-line arguments
     args <- getArgs
-    (steps, f) <- maybe usage pure $ case args of
+    (steps, f) <- maybe usage pure case args of
         ["-n", n, f]
             | Just n' <- readMaybe @Integer n -> Just ([1..n'], f)
         [f] -> Just ([1..], f)
@@ -70,19 +72,19 @@ main = do
     let rom = listArray @UArray (0, romSize - 1) (romBits ++ repeat False)
     ramBits <- listBEFromFile "ram.bin"
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
-    -- Make environment
+    -- Make the environment
     env <- newIORef $ M.fromList [(x, replicate s False) | (x, s) <- vars netlist]
     -- Simulate
-    for_ steps $ \i -> do
+    for_ steps \i -> do
         printf "Step %d:\n" i
         -- Keep the old environment around for registers
         oldEnv <- readIORef env
         -- Read input variables
-        for_ (invars netlist) $ \x -> do
+        for_ (invars netlist) \x -> do
             v <- getValue x (fromJust $ lookup x $ vars netlist)
             modifyIORef' env $ M.insert x v
         -- Compute equations
-        for_ (equations netlist) $ \(x, ex) -> do
+        for_ (equations netlist) \(x, ex) -> do
             e <- readIORef env
             -- Helpers
             let arg (Avar x) = e M.! x
@@ -94,11 +96,11 @@ main = do
                     -- Read from RAM
                     rv <- sequence [readArray ram (address s ra + i) | i <- [0..s - 1]]
                     -- If `we` is nonzero, write to RAM
-                    when (or (arg we)) $
+                    when (or (arg we)) do
                         sequence_ [writeArray ram (address s wa + i) v | (i, v) <- zip [0..s - 1] (arg w)]
                     return rv
                 -- Everything else is pure
-                _ -> pure $ case ex of
+                _ -> pure case ex of
                     Earg a       -> arg a
                     Ereg x       -> oldEnv M.! x
                     Enot a       -> map not (arg a)
@@ -114,6 +116,6 @@ main = do
             writeIORef env $ M.insert x v e
         -- Print output variables
         e <- readIORef env
-        for_ (outvars netlist) $ \x -> do
+        for_ (outvars netlist) \x -> do
             printf "=> %s = " x
             print (Value (e M.! x))

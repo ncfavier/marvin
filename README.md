@@ -1,22 +1,29 @@
 # [scapin](https://git.monade.li/scapin).
 
-## Acte I : le simulateur
+## Acte I. Le simulateur
 
-### *Scène 1* : compilation
+### Instructions
 
-Le simulateur est réalisé en Haskell (GHC), et dépend des paquets [`base`](https://hackage.haskell.org/package/base), [`containers`](https://hackage.haskell.org/package/containers) et [`array`](https://hackage.haskell.org/package/array).
+Le simulateur est réalisé en Haskell (GHC), et dépend des paquets [`base`](https://hackage.haskell.org/package/base), [`bytestring`](https://hackage.haskell.org/package/bytestring), [`containers`](https://hackage.haskell.org/package/containers) et [`array`](https://hackage.haskell.org/package/array).
 
 Le Makefile fourni *devrait* fonctionner si ces paquets sont installés globalement (sous Arch Linux, compiler avec `GHCFLAGS=-dynamic`).
 
-### *Scène 2* : utilisation
+Le projet peut également être compilé et lancé avec [Cabal](https://www.haskell.org/cabal/), qui se charge d'installer les dépendances :
 
 ```
-./simulator [-n steps] netlist
+cabal v2-build
+cabal v2-exec simulator -- [arguments...]
+```
+
+Les arguments sont attendus au format suivant :
+
+```
+simulator [-n steps] netlist
 ```
 
 La ROM (resp. la RAM) est initialisée avec le contenu du fichier `rom.bin` (resp. `ram.bin`) s'il existe, et complétée par des zéros.
 
-### *Scène 3* : commentaires
+### Commentaires
 
 La ROM et la RAM sont représentées comme des tableaux (`Data.Array`) de booléens, afin de ne pas privilégier une taille de mot donnée.
 
