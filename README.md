@@ -25,6 +25,7 @@ Les entiers sont interprétés et stockés de manière gros-boutiste.
 Le simulateur maintient un environnement consistant en une table de hachage (`Data.Map`) mutable qui associe à chaque variable de la netlist une valeur (initialement zéro).
 
 À chaque étape de la simulation :
+
 - les variables d'entrée sont lues au clavier et mises à jour dans l'environnement ;
 - pour chaque équation `x = e` de la netlist (supposée triée), on évalue l'expression `e` et on affecte la valeur obtenue à `x` dans l'environnement ;
 - les variables de sortie sont affichées.
