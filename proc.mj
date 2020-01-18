@@ -1,0 +1,80 @@
+(* Constants *)
+
+const WORD = 42
+
+const LOAD  = WORD - 1
+const STORE = WORD - 2
+const ADD   = WORD - 3
+const SUB   = WORD - 4
+const JUMP  = WORD - 5
+const JL    = WORD - 6
+
+(* Utilities *)
+
+add1(a, b, c) = (s, r) where
+    x = a ^ b;
+    s = x ^ c;
+    r = (a & b) + (x & c);
+end where
+
+add<n>(a:[n], b:[n], sub, c_in) = (o:[n], c_out) where
+    if n = 1 then
+        (o, c_out) = add1(a, b ^ sub, c_in);
+    else
+        (s_n1, c_n1) = add<n-1>(a[1..], b[1..], sub, c_in);
+        (s_n, c_out) = add1(a[0], b[0] ^ sub, c_n1);
+        o = s_n . s_n1
+    end if
+end where
+
+carry1(a, c) = (s, r) where
+    s = a ^ c;
+    r = a & c;
+end where
+
+carry<n, i>(a:[n], c_in) = o:[i + 1] where
+    if i = 0 then
+        (o, c) = carry1(a[i], c_in);
+    else
+        (s, c) = carry1(a[i], c_in);
+        o_n1 = carry<n, i - 1>(a, c);
+        o = o_n1 . s;
+    end if
+end where
+
+increment<n>(a:[n]) = o:[n] where
+    o = carry<n, n - 1>(a, 1);
+end where
+
+(* Main *)
+
+main() = (pc_reg:[WORD]) where
+    zero = 000000000000000000000000000000000000000000;
+
+    (* Registers *)
+    pc_reg = reg(pc);
+    a_reg = reg(a);
+
+    (* Fetch *)
+    ins = ram<WORD, WORD>(pc_reg, false, zero, zero);
+    pc1 = increment<WORD>(pc_reg);
+    op = ram<WORD, WORD>(pc1, false, zero, zero);
+    pc2 = increment<WORD>(pc1);
+
+    (* Decode *)
+    signal_load  = ins[LOAD];
+    signal_store = ins[STORE];
+    signal_add   = ins[ADD];
+    signal_sub   = ins[SUB];
+    signal_jump  = ins[JUMP];
+    signal_jl    = ins[JL];
+
+    (* Execute *)
+    ram_out = ram<WORD, WORD>(op, signal_store, op, a_reg);
+    (add_out, c) = add<WORD>(a_reg, op, signal_sub, signal_sub);
+    flag_sign = add_out[0];
+    (* flag_zero = mux(add_out, false, true); *)
+    jump = signal_jump & (not(signal_jl) + flag_sign);
+    a = mux(signal_load, mux(signal_add, a_reg, add_out), ram_out);
+    pc = mux(jump, pc2, op);
+end where

@@ -3,5 +3,6 @@ dist*
 .ghc*
 test
 simulator
+assembler
 rom.bin
 ram.bin

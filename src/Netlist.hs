@@ -1,9 +1,18 @@
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Netlist where
 
+import Control.Monad.Writer hiding (lift)
+import Control.Monad.State hiding (lift)
 import Data.Bool
 import Data.Char
-import Text.ParserCombinators.ReadP
-import Text.Read hiding ((<++))
+import Data.Word
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Set (Set)
+import qualified Data.Set as S
+import Text.ParserCombinators.ReadP hiding (get)
+import Text.Read hiding ((<++), get)
 
 type Variable = String
 
@@ -33,11 +42,11 @@ data Expression = Earg Argument
                 | Eram Int Int Argument Argument Argument Argument
                 deriving Show
 
-data Netlist = N { invars :: [Variable]
-                 , outvars :: [Variable]
-                 , vars :: [(Variable, Int)]
-                 , equations :: [(Variable, Expression)] }
-             deriving Show
+data Netlist = Netlist { invars    :: [Variable]
+                       , outvars   :: [Variable]
+                       , vars      :: [(Variable, Int)]
+                       , equations :: Map Variable Expression
+                       } deriving Show
 
 instance Read Netlist where
     readPrec = lift netlist
@@ -55,7 +64,7 @@ identifier = token $ do
 
 operator s = token (string s)
 
-varAndSize = do
+declaration = do
     x <- identifier
     size <- option 1 (colon >> integer)
     return (x, size)
@@ -125,7 +134,35 @@ netlist = do
     "OUTPUT" <- identifier
     outv <- identifier `sepBy` comma
     "VAR" <- identifier
-    v <- varAndSize `sepBy` comma
+    v <- declaration `sepBy` comma
     "IN" <- identifier
-    eq <- many equation
-    return (N inv outv v eq)
+    eqs <- many equation
+    return (Netlist inv outv v (M.fromList eqs))
+
+-- TODO: remove
+topsort eqs = execWriter $ flip execStateT S.empty $ mapM_ addEq (M.keys eqs)
+    where
+        addEq = go S.empty where
+            go seen x = do
+                env <- get
+                when (x `S.notMember` env) do
+                    when (x `S.member` seen) $ error "cycle"
+                    let exp = eqs M.! x
+                        arg (Avar y) = go (S.insert x seen) y
+                        arg (Aconst _) = return ()
+                    case exp of
+                        Earg a              -> arg a
+                        Enot a              -> arg a
+                        Eor a b             -> arg a >> arg b
+                        Exor a b            -> arg a >> arg b
+                        Eand a b            -> arg a >> arg b
+                        Enand a b           -> arg a >> arg b
+                        Emux s a b          -> arg s >> arg a >> arg b
+                        Econcat a b         -> arg a >> arg b
+                        Eslice i j a        -> arg a
+                        Eselect i a         -> arg a
+                        Erom a s ra         -> arg ra
+                        Eram a s ra we wa w -> arg ra >> arg we >> arg wa >> arg w
+                        _                   -> return ()
+                    tell [(x, exp)]
+                    modify' $ S.insert x
