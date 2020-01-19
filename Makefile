@@ -20,8 +20,11 @@ clock:
 assembler:
 	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Assembler src/Assembler.hs
 
-proc.net: proc.mj
-	minijazz/mjc.byte $^
+minijazz/mjc.byte:
+	cd minijazz && ocamlbuild mjc.byte
+
+proc.net: proc.mj minijazz/mjc.byte
+	minijazz/mjc.byte proc.mj
 
 ram.bin: assembler clock.asm
 	./assembler clock.asm > $@
