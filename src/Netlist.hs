@@ -36,7 +36,7 @@ data Expression = Earg Argument
 
 data Netlist = Netlist { invars    :: [Variable]
                        , outvars   :: [Variable]
-                       , vars      :: [(Variable, Int)]
+                       , vars      :: Map Variable Int
                        , equations :: Map Variable Expression
                        }
 
@@ -126,7 +126,7 @@ netlist = do
     "OUTPUT" <- identifier
     outvars <- identifier `sepBy` comma
     "VAR" <- identifier
-    vars <- declaration `sepBy` comma
+    vars <- M.fromList <$> declaration `sepBy` comma
     "IN" <- identifier
     equations <- M.fromList <$> many equation
     return Netlist{..}

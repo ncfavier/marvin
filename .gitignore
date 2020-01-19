@@ -2,6 +2,7 @@ build
 test
 simulator
 assembler
+clock
 rom.bin
 ram.bin
 *.tar.gz

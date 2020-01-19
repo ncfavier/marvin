@@ -4,9 +4,17 @@ GHCFLAGS := $(GHCFLAGS) -O2
 run: simulator ram.bin proc.net
 	./simulator $(if $(STEPS),-n $(STEPS),) proc.net
 
+.PHONY: runclock
+runclock: clock ram.bin proc.net
+	./clock $(if $(ASYNC),--async,) proc.net
+
 .PHONY: simulator
 simulator:
 	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Simulator src/Simulator.hs
+
+.PHONY: clock
+clock:
+	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Clock src/Clock.hs
 
 .PHONY: assembler
 assembler:
@@ -20,7 +28,7 @@ ram.bin: assembler clock.asm
 
 .PHONY: clean
 clean:
-	rm -rf build simulator assembler ram.bin rom.bin proc.net
+	rm -rf build simulator clock assembler ram.bin rom.bin proc.net
 
 .PHONY: archive
 archive:

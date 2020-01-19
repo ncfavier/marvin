@@ -48,7 +48,7 @@ end where
 
 (* Main *)
 
-main() = (pc_reg:[WORD]) where
+main() = () where
     zero = 000000000000000000000000000000000000000000;
 
     (* Registers *)
