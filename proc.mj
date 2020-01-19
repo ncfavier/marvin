@@ -2,13 +2,6 @@
 
 const WORD = 42
 
-const LOAD  = WORD - 1
-const STORE = WORD - 2
-const ADD   = WORD - 3
-const SUB   = WORD - 4
-const JUMP  = WORD - 5
-const JL    = WORD - 6
-
 (* Utilities *)
 
 add1(a, b, c) = (s, r) where
@@ -46,14 +39,23 @@ increment<n>(a:[n]) = o:[n] where
     o = carry<n, n - 1>(a, 1);
 end where
 
+signal<n, i>(ins:[n]) = s where
+    s = ins[(n - 1) - i];
+end where
+
 (* Main *)
 
 main() = () where
+    (* Constant nodes *)
     zero = 000000000000000000000000000000000000000000;
 
     (* Registers *)
     pc_reg = reg(pc);
     a_reg = reg(a);
+
+    (* Flags *)
+    flag_zero = mux<WORD, 1>(a_reg, false, true);
+    flag_sign = a_reg[0];
 
     (* Fetch *)
     ins = ram<WORD, WORD>(pc_reg, false, zero, zero);
@@ -62,19 +64,29 @@ main() = () where
     pc2 = increment<WORD>(pc1);
 
     (* Decode *)
-    signal_load  = ins[LOAD];
-    signal_store = ins[STORE];
-    signal_add   = ins[ADD];
-    signal_sub   = ins[SUB];
-    signal_jump  = ins[JUMP];
-    signal_jl    = ins[JL];
+    signal_load  = signal<WORD, 0>(ins);
+    signal_store = signal<WORD, 1>(ins);
+    signal_add   = signal<WORD, 2>(ins);
+    signal_sub   = signal<WORD, 3>(ins);
+    signal_jump  = signal<WORD, 4>(ins);
+    signal_zero  = signal<WORD, 5>(ins);
+    signal_less  = signal<WORD, 6>(ins);
 
-    (* Execute *)
+    (* RAM access *)
     ram_out = ram<WORD, WORD>(op, signal_store, op, a_reg);
+
+    (* Arithmetic *)
     (add_out, c) = add<WORD>(a_reg, op, signal_sub, signal_sub);
-    flag_sign = add_out[0];
-    (* flag_zero = mux(add_out, false, true); *)
-    jump = signal_jump & (not(signal_jl) + flag_sign);
-    a = mux(signal_load, mux(signal_add, a_reg, add_out), ram_out);
-    pc = mux(jump, pc2, op);
+
+    bus = mux<1, WORD>(signal_ram_out, ram_out,
+          mux<1, WORD>(signal_add_out, add_out,
+          mux<1, WORD>(signal_a_out, a,
+          zero)));
+
+    a = mux<1, WORD>(signal_a_in, bus, a_reg);
+
+    (* Jump *)
+    jump = signal_jump & (not(signal_less) + flag_sign)
+                       & (not(signal_zero) + flag_zero);
+    pc = mux<1, WORD>(jump, op, pc2);
 end where

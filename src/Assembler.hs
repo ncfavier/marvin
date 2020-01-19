@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Assembler where
 
 import Prelude hiding (lex)
@@ -15,8 +16,8 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Void
 import Text.Megaparsec hiding (State, label)
-import Text.Megaparsec.Char
-import Text.Megaparsec.Char.Lexer hiding (space)
+import Text.Megaparsec.Char hiding (space)
+import Text.Megaparsec.Char.Lexer
 import System.Environment
 import System.Exit
 
@@ -25,13 +26,15 @@ instance (Stream s, MonadWriter w m) => MonadWriter w (ParsecT e s m) where
     listen = undefined
     pass = undefined
 
+data Operand = Int Integer | Var String
+
 data Environment = Environment { vars :: Map String Integer
                                , pos  :: Integer
                                }
 
 initialEnvironment = Environment M.empty 0
 
-type Parser = ParsecT Void String (WriterT [Integer] (State Environment))
+type Parser = ParsecT Void String (WriterT [Operand] (State Environment))
 
 usage = do
     progName <- getProgName
@@ -43,14 +46,16 @@ main = do
         [f] -> Just f
         _ -> Nothing
     input <- readFile f
-    let (r, output) = flip evalState initialEnvironment
-                    $ runWriterT
-                    $ runParserT file f
-                    $ input
+    let ((r, output), Environment { vars }) = flip runState initialEnvironment
+                                            $ runWriterT
+                                            $ runParserT file f
+                                            $ input
     either (die . errorBundlePretty) pure r
-    mapM_ print output
+    let printOperand (Int i) = print i
+        printOperand (Var v) = print (vars M.! v)
+    mapM_ printOperand output
 
-whitespace = skipMany (oneOf " \t")
+whitespace = space (skipSome (oneOf " \t")) (skipLineComment ";") empty
 
 lex :: Parser a -> Parser a
 lex = lexeme whitespace
@@ -86,19 +91,14 @@ label = do
     sym ":"
     modify' $ \e -> e { vars = M.insert l (pos e) (vars e) }
 
-variable = do
-    v <- ident
-    vars <- gets vars
-    return $ vars M.! v
-
-operand = integer <|> variable
+operand = Int <$> integer <|> Var <$> ident
 
 instruction = do
     ins <- ident
     ops <- many operand
-    emit (code M.! ins:ops)
+    emit (Int (code M.! ins):ops)
 
-[loadBit, storeBit, addBit, subBit, jumpBit, jlBit] = bit <$> [0..5]
+[loadBit, storeBit, addBit, subBit, jumpBit, zeroBit, lessBit] = bit <$> [0..6]
 
 code = M.fromList
     [ ("load",  loadBit)
@@ -106,5 +106,6 @@ code = M.fromList
     , ("add",   addBit)
     , ("sub",   addBit .|. subBit)
     , ("jump",  jumpBit)
-    , ("jl",    jumpBit .|. jlBit)
+    , ("jz",    jumpBit .|. zeroBit)
+    , ("jl",    jumpBit .|. lessBit)
     ]

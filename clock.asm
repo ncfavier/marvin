@@ -8,8 +8,8 @@ PULSE  = 1030
 
 loop:
     load PULSE
+    jz loop
     sub 1
-    jl loop
     store PULSE
 
     load SECOND
@@ -36,16 +36,27 @@ loop:
     load DAY
     add 1
     store DAY
-    sub 31
+    load MONTH
+    sub 2
+    jz february
+    load DAY
+    sub 31 ; if (MONTH & 1) ^ (MONTH & 8), sub 32
+    jump end_february
+    february:
+    load DAY
+    sub 29 ; if leap year, sub 30
+    end_february:
     jl loop
 
+    add 1
     store DAY
     load MONTH
     add 1
     store MONTH
-    sub 12
+    sub 13
     jl loop
 
+    add 1
     store MONTH
     load YEAR
     add 1

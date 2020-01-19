@@ -1,16 +1,14 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 module Machine where
 
-import Control.Exception
 import Control.Monad
 import Data.Array.IArray
 import Data.Array.IO
 import Data.Array.MArray
 import Data.Array.Unboxed
-import Data.Bits
 import Data.Bool
 import Data.IORef
 import Data.List
@@ -20,7 +18,7 @@ import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as S
 import System.IO
-import System.IO.Error
+import Text.Printf
 
 import Netlist
 
@@ -28,18 +26,7 @@ nand x y = not (x && y)
 
 slice i j l = take (j - i + 1) (drop i l)
 
-bitFromBool = bool zeroBits (bit 0)
-
-bitsFromListBE = foldl (\n b -> (n `shiftL` 1) .|. bitFromBool b) zeroBits
-
-finiteBitsToListBE b = bitsToListBE s b
-    where s = finiteBitSize b
-
-bitsToListBE s b = [testBit b i | i <- [s - 1, s - 2..0]]
-
-listBEFromFile f = foldMap (bitsToListBE 42)
-                 . either (const []) (map (read @Integer) . lines)
-               <$> tryJust (guard . isDoesNotExistError) (readFile f)
+whenM c a = do c <- c; when c a
 
 data Machine = Machine { netlist  :: Netlist
                        , ram      :: IOUArray Int Bool
@@ -49,8 +36,8 @@ data Machine = Machine { netlist  :: Netlist
                        , roots    :: [Variable]
                        }
 
-ramSize = 2^20
-romSize = 2^10
+ramSize = 2^16
+romSize = 2^8
 
 newMachine netlist@Netlist{..} ramBits romBits = do
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
@@ -59,13 +46,17 @@ newMachine netlist@Netlist{..} ramBits romBits = do
     computed <- newIORef S.empty
     let ramvars = [x | (x, Eram{}) <- M.assocs equations]
         regvars = [x | (_, Ereg x) <- M.assocs equations]
-        roots = nub (ramvars ++ regvars)
+        roots = nub (ramvars ++ regvars ++ outvars)
     return Machine{..}
 
 getVariable m@Machine{..} x = do
     computed <- S.member x <$> readIORef computed
     unless computed $ compute m x
     (M.! x) <$> readIORef env
+
+printVariable m@Machine{..} x = do
+    v <- getVariable m x
+    printf "==> %s = %d\n" x (bitsToInteger v)
 
 readRam Machine{..} s ra = mapM (readArray ram) [ra..ra + s - 1]
 
@@ -76,7 +67,7 @@ readRom Machine{..} s ra = map (rom !) [ra..ra + s - 1]
 compute m@Machine{ netlist = Netlist{..}, .. } x = do
     let arg (Aconst (Value l)) = return l
         arg (Avar x)           = getVariable m x
-        address s a = (s *) . bitsFromListBE <$> arg a
+        address s a = (s *) . fromIntegral . bitsToInteger <$> arg a
     v <- case equations M.! x of
         Earg a       -> arg a
         Ereg x       -> (M.! x) <$> readIORef env
@@ -85,17 +76,15 @@ compute m@Machine{ netlist = Netlist{..}, .. } x = do
         Exor a b     -> zipWith (/=) <$> arg a <*> arg b
         Eand a b     -> zipWith (&&) <$> arg a <*> arg b
         Enand a b    -> zipWith nand <$> arg a <*> arg b
-        Emux s a b   -> bool (arg a) (arg b) . or =<< arg s
+        Emux s a b   -> bool (arg b) (arg a) . or =<< arg s
         Econcat a b  -> (++) <$> arg a <*> arg b
         Eslice i j a -> slice i j <$> arg a
         Eselect i a  -> slice i i <$> arg a
         Erom a s ra  -> readRom m s <$> address a ra
         Eram a s ra we wa w -> do
             r <- readRam m s =<< address a ra
-            we <- or <$> arg we
-            when we do
+            r <$ whenM (or <$> arg we) do
                 join $ writeRam m s <$> address a wa <*> arg w
-            return r
     modifyIORef' env $ M.insert x v
     modifyIORef' computed $ S.insert x
 
