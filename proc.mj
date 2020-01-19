@@ -64,16 +64,18 @@ main() = () where
     pc2 = increment<WORD>(pc1);
 
     (* Decode *)
-    signal_load  = signal<WORD, 0>(ins);
-    signal_store = signal<WORD, 1>(ins);
-    signal_add   = signal<WORD, 2>(ins);
-    signal_sub   = signal<WORD, 3>(ins);
-    signal_jump  = signal<WORD, 4>(ins);
-    signal_zero  = signal<WORD, 5>(ins);
-    signal_less  = signal<WORD, 6>(ins);
+    signal_a_in    = signal<WORD, 0>(ins);
+    signal_a_out   = signal<WORD, 1>(ins);
+    signal_ram_in  = signal<WORD, 2>(ins);
+    signal_ram_out = signal<WORD, 3>(ins);
+    signal_add_out = signal<WORD, 4>(ins);
+    signal_sub     = signal<WORD, 5>(ins);
+    signal_jump    = signal<WORD, 6>(ins);
+    signal_zero    = signal<WORD, 7>(ins);
+    signal_less    = signal<WORD, 8>(ins);
 
     (* RAM access *)
-    ram_out = ram<WORD, WORD>(op, signal_store, op, a_reg);
+    ram_out = ram<WORD, WORD>(op, signal_ram_in, op, a_reg);
 
     (* Arithmetic *)
     (add_out, c) = add<WORD>(a_reg, op, signal_sub, signal_sub);

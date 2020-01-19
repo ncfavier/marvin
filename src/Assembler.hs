@@ -98,14 +98,23 @@ instruction = do
     ops <- many operand
     emit (Int (code M.! ins):ops)
 
-[loadBit, storeBit, addBit, subBit, jumpBit, zeroBit, lessBit] = bit <$> [0..6]
+[ a_in,
+  a_out,
+  ram_in,
+  ram_out,
+  add_out,
+  sub,
+  jump,
+  zero,
+  less
+  ] = bit <$> [0..8]
 
 code = M.fromList
-    [ ("load",  loadBit)
-    , ("store", storeBit)
-    , ("add",   addBit)
-    , ("sub",   addBit .|. subBit)
-    , ("jump",  jumpBit)
-    , ("jz",    jumpBit .|. zeroBit)
-    , ("jl",    jumpBit .|. lessBit)
+    [ ("load",  ram_out .|. a_in)
+    , ("store", a_out .|. ram_in)
+    , ("add",   add_out .|. a_in)
+    , ("sub",   add_out .|. sub .|. a_in)
+    , ("jump",  jump)
+    , ("jz",    jump .|. zero)
+    , ("jl",    jump .|. less)
     ]
