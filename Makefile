@@ -1,16 +1,16 @@
 GHCFLAGS := $(GHCFLAGS) -O2
 
 .PHONY: run
-run: simulator ram.bin proc.net
-	./simulator $(if $(STEPS),-n $(STEPS),) proc.net
+run: dialog ram.img
+	./dialog $(if $(STEPS),-n $(STEPS),) $(NETLIST)
 
 .PHONY: runclock
-runclock: clock ram.bin proc.net
+runclock: clock ram.img proc.net
 	./clock $(if $(ASYNC),--async,) proc.net
 
-.PHONY: simulator
-simulator:
-	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Simulator src/Simulator.hs
+.PHONY: dialog
+dialog:
+	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Dialog src/Dialog.hs
 
 .PHONY: clock
 clock:
@@ -26,13 +26,13 @@ minijazz/mjc.byte:
 proc.net: proc.mj minijazz/mjc.byte
 	minijazz/mjc.byte proc.mj
 
-ram.bin: assembler clock.asm
+ram.img: assembler clock.asm
 	./assembler clock.asm > $@
 
 .PHONY: clean
 clean:
-	rm -rf build simulator clock assembler ram.bin rom.bin proc.net
+	rm -rf build dialog clock assembler ram.img rom.img proc.net
 
 .PHONY: archive
 archive:
-	tar -cvzf scapin.tar.gz src Makefile README.md proc.mj clock.asm
+	tar -cvzf scapin.tar.gz src minijazz Makefile README.md proc.mj proc.net clock.asm

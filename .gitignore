@@ -1,8 +1,8 @@
 build
 test
-simulator
-assembler
+dialog
 clock
-rom.bin
-ram.bin
+assembler
+ram.img
+rom.img
 *.tar.gz

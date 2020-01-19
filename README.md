@@ -1,22 +1,41 @@
 # [scapin](https://git.monade.li/scapin)
 
-Ce projet est réalisé en Haskell (GHC), et dépend des bibliothèques `base`, `containers`, `array`, `mtl`, `megaparsec` et `time`.
+Ce projet est réalisé en Haskell (GHC 8.6.5), et dépend des bibliothèques `base`, `containers`, `array`, `mtl`, `megaparsec` et `time`.
+
+Il contient les modules suivants :
+
+- `Netlist` : définition et parsage des netlists ;
+- `Simulator` : simulateur de netlists ;
+- `Dialog` (exécutable `dialog`) : interface « dialogue » du simulateur : lit les variables d'entrée au clavier et affiche les variables de sortie ;
+- `Clock` (exécutable `clock`) : interface « horloge » du simulateur : ne lit aucune variable, affiche l'heure et la date dans un format lisible, gère l'initialisation et la synchronisation ;
+- `Assembler` (exécutable `assembler`) : compile un programme assembleur vers une image RAM chargeable par le simulateur.
 
 ## Simulateur
 
-    simulator [-n steps] netlist
+    dialog [-n STEPS] NETLIST
 
-La ROM et la RAM sont représentées comme des tableaux (`Data.Array`) de booléens, afin de ne pas privilégier une taille de mot donnée.
+La ROM et la RAM sont représentées comme des tableaux de booléens, afin de ne pas privilégier une taille de mot donnée.
 
 Les entiers sont interprétés et stockés de manière gros-boutiste.
 
-Le simulateur maintient un environnement consistant en une table de hachage (`Data.Map`) mutable qui associe à chaque variable de la netlist une valeur (initialement zéro).
+On maintient un environnement associant une valeur à chaque variable de la netlist (initialement zéro).
 
-À chaque étape de la simulation :
+La netlist n'est pas supposée triée : si une variable `a` dépend d'une variable `b`, on calculera `b` avant `a`. À chaque étape, on ne calcule que les variables suivantes :
 
-- les variables d'entrée sont lues au clavier et mises à jour dans l'environnement ;
-- pour chaque équation `x = e` de la netlist (supposée triée), on évalue l'expression `e` et on affecte la valeur obtenue à `x` dans l'environnement ;
-- les variables de sortie sont affichées.
+- les variables de sortie ;
+- les variables `x` apparaissant dans une équation de la forme `... = REG x` ;
+- les variables `x` apparaissant dans une équation de la forme `x = RAM ...`.
+
+Cela permet d'optimiser en ne calculant pas les variables non utilisées, et je conjecture que c'est suffisant pour effectuer tous les effets de bord.
+
+La RAM (resp. la ROM) est initialisée avec le contenu de l'image `ram.img` (resp. `rom.img`) si elle existe, et complétée par des zéros.
+
+Le format pour les images RAM/ROM est le suivant :
+
+- un entier par ligne ;
+- le premier entier est la taille de mot `n` ;
+- le deuxième entier est la taille `m` de l'image en mots ;
+- le reste interprété comme une suite de mots de `n` bits, concaténés et éventuellement complétés pour atteindre `m` mots.
 
 ## Microprocesseur
 
@@ -43,21 +62,23 @@ Les instructions suivantes sont disponibles :
 
 Chaque opérande peut faire référence à un entier, un registre, ou un emplacement mémoire.
 
-Le microprocesseur est écrit en minijazz (`proc.mj`), et compilé à l'aide d'une version légèrement modifiée de minijazz : le type des fonctions `reg` et `mux` permet de les utiliser avec des signaux de taille quelconque.
+Le microprocesseur est écrit en minijazz (`proc.mj`), et compilé vers la netlist `proc.net`.
+
+Il dépend d'une version légèrement modifiée de minijazz (fournie dans le dépôt) : le type des fonctions `reg` et `mux` permet de les utiliser avec des signaux de taille quelconque.
 
 ## Assembleur
 
-Le module `Assembler` fournit un programme `assembler` permettant de compiler depuis un langage assembleur simpliste vers une image RAM contenant un programme exécutable par le microprocesseur.
+    assembler FILE
 
-L'assembleur comprend trois types d'instructions :
+L'assembleur permet de compiler depuis un langage assembleur simpliste vers une image RAM contenant un programme exécutable par le microprocesseur.
+
+Il supporte trois types d'instructions :
 
 - les affectations : `x = v` ;
 - les étiquettes : `label:` ;
-- les instructions : `ins [op1 [op2]]`.
+- les instructions machine : `ins [op1 [op2]]`.
 
-Les commentaires de ligne débutent par le symbole `;`.
-
-Le format de l'image RAM est : un entier par ligne, représentant un mot de 42 bits.
+L'image RAM est écrite sur la sortie standard.
 
 ## Horloge
 
@@ -65,26 +86,18 @@ Le format de l'image RAM est : un entier par ligne, représentant un mot de 42 b
       -a           --async          run in async mode
       -i TIMEDATE  --init=TIMEDATE  initial timedate
 
-L'exécutable `clock` fourni par le module `Clock` est une interface pour le simulateur qui se charge de la synchronisation avec l'horloge système et de l'affichage de l'horloge dans un format lisible. L'option `-a` permet d'ignorer l'horloge système et de faire tourner l'horloge le plus rapidement possible ; l'option `-i` permet d'initialiser l'horloge à un instant donné (format `%Y-%m-%d %H:%M:%S`).
+L'option `-a` permet d'ignorer l'horloge système et de faire tourner l'horloge le plus rapidement possible ; l'option `-i` permet d'initialiser l'horloge à un instant donné (format `%Y-%m-%d %H:%M:%S`).
 
-La RAM (resp. la ROM) est initialisée avec le contenu de l'image `ram.bin` (resp. `rom.bin`) si elle existe, et complétée par des zéros.
-
-Des emplacements en mémoire sont utilisés pour l'entrée-sortie :
+Certains emplacements en mémoire sont utilisés pour l'entrée-sortie :
 
 - les adresses 1024 - 1029 contiennent les secondes, minutes, heures, jours, mois et années ;
-- l'adresse 1030 sert à la synchronisation : le simulateur écrit 1 à cet emplacement quand une seconde est passée (ou à chaque étape, en mode asynchrone).
+- l'adresse 1030 sert à la synchronisation : le simulateur ajoute 1 à cet emplacement pour chaque seconde écoulée, l'horloge soustrait 1 à chaque itération et s'arrête quand il atteint 0 (en mode asynchrone, on fixe cet emplacement à 1).
 
-Le programme assembleur de l'horloge se trouve dans `clock.asm` et doit être compilé vers `ram.bin` avec la commande suivante :
+Le programme assembleur de l'horloge se trouve dans `clock.asm`.
 
-    ./assembler clock.asm > ram.bin
+L'horloge supporte les années bissextiles, mais pas les secondes intercalaires (ou alors c'est vraiment pas fait exprès).
 
-L'horloge peut ensuite être lancée avec la commande :
-
-    ./clock proc.net
-
-Et arrêtée avec `Ctrl + C`.
-
-## Tout à la fois
+## TL;DR
 
 La cible `runclock` du Makefile fourni permet de tout compiler et de lancer l'horloge en mode synchrone.
 

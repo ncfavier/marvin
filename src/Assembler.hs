@@ -38,7 +38,7 @@ type Parser = ParsecT Void String (WriterT [Operand] (State Environment))
 
 usage = do
     progName <- getProgName
-    die $ "usage: " ++ progName ++ " file"
+    die $ "usage: " ++ progName ++ " FILE"
 
 main = do
     args <- getArgs
@@ -51,6 +51,8 @@ main = do
                                             $ runParserT file f
                                             $ input
     either (die . errorBundlePretty) pure r
+    print 42 -- word size
+    print 2048 -- ram size
     let printOperand (Int i) = print i
         printOperand (Var v) = print (vars M.! v)
     mapM_ printOperand output
@@ -106,8 +108,7 @@ instruction = do
   sub,
   jump,
   zero,
-  less
-  ] = bit <$> [0..8]
+  less ] = bit <$> [0..8]
 
 code = M.fromList
     [ ("load",  ram_out .|. a_in)

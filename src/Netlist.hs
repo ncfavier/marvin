@@ -2,7 +2,6 @@
 module Netlist where
 
 import Data.Bool
-import Data.Bits
 import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -18,13 +17,6 @@ instance Show Value where
 
 instance Read Value where
     readPrec = lift value
-
-bitsToInteger :: [Bool] -> Integer
-bitsToInteger = foldl f zeroBits
-    where f n b = (n `shiftL` 1) .|. bool zeroBits (bit 0) b
-
-bitsFromInteger :: Int -> Integer -> [Bool]
-bitsFromInteger s n = [testBit n i | i <- [s - 1, s - 2..0]]
 
 data Argument = Avar Variable | Aconst Value
 

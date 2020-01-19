@@ -4,13 +4,13 @@ HOUR   = 1026
 DAY    = 1027
 MONTH  = 1028
 YEAR   = 1029
-PULSE  = 1030
+SYNC   = 1030
 
 loop:
-    load PULSE
+    load SYNC
     jz loop
     sub 1
-    store PULSE
+    store SYNC
 
     load SECOND
     add 1
