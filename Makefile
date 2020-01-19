@@ -2,11 +2,11 @@ GHCFLAGS := $(GHCFLAGS) -O2
 
 .PHONY: run
 run: dialog ram.img
-	./dialog $(if $(STEPS),-n $(STEPS),) $(NETLIST)
+	./dialog $(if $(steps),-n $(steps),) $(netlist)
 
 .PHONY: runclock
 runclock: clock ram.img proc.net
-	./clock $(if $(ASYNC),--async,) proc.net
+	./clock $(if $(async),--async,) proc.net
 
 .PHONY: dialog
 dialog:

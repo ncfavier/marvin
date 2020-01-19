@@ -101,4 +101,4 @@ L'horloge supporte les années bissextiles, mais pas les secondes intercalaires 
 
 La cible `runclock` du Makefile fourni permet de tout compiler et de lancer l'horloge en mode synchrone.
 
-La variable `ASYNC` peut être mise à 1 pour le mode asynchrone (`make ASYNC=1 runclock`).
+La variable `async` peut être définie pour activer le mode asynchrone (`make runclock async=1`).
