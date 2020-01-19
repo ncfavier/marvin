@@ -80,11 +80,13 @@ main() = () where
     (* Arithmetic *)
     (add_out, c) = add<WORD>(a_reg, op, signal_sub, signal_sub);
 
+    (* Bus *)
     bus = mux<1, WORD>(signal_ram_out, ram_out,
           mux<1, WORD>(signal_add_out, add_out,
           mux<1, WORD>(signal_a_out, a,
           zero)));
 
+    (* Update registers *)
     a = mux<1, WORD>(signal_a_in, bus, a_reg);
 
     (* Jump *)

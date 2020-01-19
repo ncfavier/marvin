@@ -35,4 +35,4 @@ clean:
 
 .PHONY: archive
 archive:
-	tar -cvzf scapin.tar.gz src minijazz Makefile README.md proc.mj proc.net clock.asm
+	git archive --prefix=scapin/ -o scapin.tar.gz HEAD

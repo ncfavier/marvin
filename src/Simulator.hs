@@ -29,12 +29,13 @@ nand x y = not (x && y)
 
 slice i j l = take (j - i + 1) (drop i l)
 
-bitsToInteger :: [Bool] -> Integer
+bitsToInteger :: Bits i => [Bool] -> i
 bitsToInteger = foldl f zeroBits
     where f n b = (n `shiftL` 1) .|. bool zeroBits (bit 0) b
 
-bitsFromInteger :: Bits i => Int -> i -> [Bool]
-bitsFromInteger s n = [testBit n i | i <- [s - 1, s - 2..0]]
+bitsFromInteger :: (Bits i, Integral j) => j -> i -> [Bool]
+bitsFromInteger s n = [testBit n i | i <- [s' - 1, s' - 2..0]]
+    where s' = fromIntegral s
 
 whenM c a = do c <- c; when c a
 
@@ -51,8 +52,7 @@ readImage f = do
         tryJust (guard . isDoesNotExistError) (readFile f)
     return case ns of
         wordSize:size:ns' ->
-            let [wordSize', size'] = fromIntegral <$> [wordSize, size] in
-            (foldMap (bitsFromInteger wordSize') ns', wordSize' * size')
+            (foldMap (bitsFromInteger wordSize) ns', fromIntegral (wordSize * size))
         _ -> ([], 0)
 
 newMachine netlist@Netlist{..} = do
@@ -74,18 +74,15 @@ getVariable m@Machine{..} x = do
 
 printVariable m@Machine{..} x = do
     v <- getVariable m x
-    printf "==> %s = %d\n" x (bitsToInteger v)
+    printf "==> %s = %d\n" x (bitsToInteger v :: Integer)
 
-readRam Machine{..} s ra = mapM (readArray ram) [ra..ra + s - 1]
+readRam Machine{..} s ra = mapM (readArray ram) [ra*s..(ra + 1)*s - 1]
 
-writeRam Machine{..} s wa w = zipWithM_ (writeArray ram) [wa..wa + s - 1] w
+writeRam Machine{..} s wa w = zipWithM_ (writeArray ram) [wa*s..(wa + 1)*s - 1] w
 
-readRom Machine{..} s ra = map (rom !) [ra..ra + s - 1]
+readRom Machine{..} s ra = map (rom !) [ra*s..(ra + 1)*s - 1]
 
 compute m@Machine{ netlist = Netlist{..}, .. } x = do
-    let arg (Aconst (Value l)) = return l
-        arg (Avar x)           = getVariable m x
-        address s a = (s *) . fromIntegral . bitsToInteger <$> arg a
     v <- case equations M.! x of
         Earg a       -> arg a
         Ereg x       -> (M.! x) <$> readIORef env
@@ -98,13 +95,16 @@ compute m@Machine{ netlist = Netlist{..}, .. } x = do
         Econcat a b  -> (++) <$> arg a <*> arg b
         Eslice i j a -> slice i j <$> arg a
         Eselect i a  -> slice i i <$> arg a
-        Erom a s ra  -> readRom m s <$> address a ra
-        Eram a s ra we wa w -> do
-            r <- readRam m s =<< address a ra
+        Erom _ s ra  -> readRom m s . bitsToInteger <$> arg ra
+        Eram _ s ra we wa w -> do
+            r <- readRam m s . bitsToInteger =<< arg ra
             r <$ whenM (or <$> arg we) do
-                join $ writeRam m s <$> address a wa <*> arg w
+                join $ writeRam m s . bitsToInteger <$> arg wa <*> arg w
     modifyIORef' env $ M.insert x v
     modifyIORef' computed $ S.insert x
+    where
+        arg (Aconst (Value l)) = return l
+        arg (Avar x)           = getVariable m x
 
 runStep m@Machine{ netlist = Netlist{..}, .. } getValue = do
     writeIORef computed S.empty

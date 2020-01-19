@@ -20,13 +20,13 @@ Les entiers sont interprétés et stockés de manière gros-boutiste.
 
 On maintient un environnement associant une valeur à chaque variable de la netlist (initialement zéro).
 
-La netlist n'est pas supposée triée : si une variable `a` dépend d'une variable `b`, on calculera `b` avant `a`. À chaque étape, on ne calcule que les variables suivantes :
+La netlist n'est pas supposée triée : si une variable `a` dépend d'une variable `b`, on calculera `b` avant `a`. À chaque étape, on calcule uniquement les variables suivantes (et leurs dépendances) :
 
 - les variables de sortie ;
 - les variables `x` apparaissant dans une équation de la forme `... = REG x` ;
 - les variables `x` apparaissant dans une équation de la forme `x = RAM ...`.
 
-Cela permet d'optimiser en ne calculant pas les variables non utilisées, et je conjecture que c'est suffisant pour effectuer tous les effets de bord.
+Cela permet de ne pas calculer les variables non utilisées, et je conjecture que c'est suffisant pour effectuer tous les effets de bord.
 
 La RAM (resp. la ROM) est initialisée avec le contenu de l'image `ram.img` (resp. `rom.img`) si elle existe, et complétée par des zéros.
 
@@ -93,7 +93,7 @@ Certains emplacements en mémoire sont utilisés pour l'entrée-sortie :
 - les adresses 1024 - 1029 contiennent les secondes, minutes, heures, jours, mois et années ;
 - l'adresse 1030 sert à la synchronisation : le simulateur ajoute 1 à cet emplacement pour chaque seconde écoulée, l'horloge soustrait 1 à chaque itération et s'arrête quand il atteint 0 (en mode asynchrone, on fixe cet emplacement à 1).
 
-Le programme assembleur de l'horloge se trouve dans `clock.asm`.
+Le programme assembleur de l'horloge se trouve dans `clock.asm`, et doit être compilé vers `ram.img`.
 
 L'horloge supporte les années bissextiles, mais pas les secondes intercalaires (ou alors c'est vraiment pas fait exprès).
 

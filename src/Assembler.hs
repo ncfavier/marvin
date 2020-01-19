@@ -26,15 +26,15 @@ instance (Stream s, MonadWriter w m) => MonadWriter w (ParsecT e s m) where
     listen = undefined
     pass = undefined
 
-data Operand = Int Integer | Var String
-
 data Environment = Environment { vars :: Map String Integer
                                , pos  :: Integer
                                }
 
 initialEnvironment = Environment M.empty 0
 
-type Parser = ParsecT Void String (WriterT [Operand] (State Environment))
+data W = Int Integer | Var String
+
+type Parser = ParsecT Void String (WriterT [W] (State Environment))
 
 usage = do
     progName <- getProgName
@@ -53,9 +53,9 @@ main = do
     either (die . errorBundlePretty) pure r
     print 42 -- word size
     print 2048 -- ram size
-    let printOperand (Int i) = print i
-        printOperand (Var v) = print (vars M.! v)
-    mapM_ printOperand output
+    let printWord (Int i) = print i
+        printWord (Var v) = print (vars M.! v)
+    mapM_ printWord output
 
 whitespace = space (skipSome (oneOf " \t")) (skipLineComment ";") empty
 

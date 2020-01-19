@@ -38,4 +38,4 @@ main = do
     forM_ steps \i -> do
         printf "Step %d:\n" i
         runStep m getValue
-        forM_ outvars \x -> printVariable m x
+        mapM_ (printVariable m) outvars

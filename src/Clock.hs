@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 module Clock where
 
 import Control.Monad
@@ -29,27 +30,33 @@ options = [ Option ['a'] ["async"] (NoArg Async) "run in async mode"
           , Option ['i'] ["init"] (ReqArg InitTime "TIMEDATE") "initial timedate"
           ]
 
+usage = "usage: clock [OPTIONS...] NETLIST"
+
 main = do
     -- Process command-line arguments
     args <- getArgs
     (opts, f) <- case getOpt Permute options args of
         (o, [f], []) -> return (o, f)
-        (_, _, errs) -> die $ concat errs ++ usageInfo "usage: clock [OPTIONS...] NETLIST" options
+        (_, _, errs) -> die $ init $ concat errs ++ usageInfo usage options
     let async = Async `elem` opts
+
     -- Read and parse the netlist
     netlist@Netlist{..} <- either die pure . readEither @Netlist =<< readFile f
+
     -- Create a machine
     m <- newMachine netlist
-    let readInteger a = bitsToInteger <$> readRam m wordSize (wordSize * a)
-        writeInteger a i = writeRam m wordSize (wordSize * a) (bitsFromInteger wordSize (toInteger i))
+    let readInteger a = bitsToInteger <$> readRam m wordSize a
+        writeInteger a i = writeRam m wordSize a (bitsFromInteger wordSize i)
+
     -- Initialise the time
     LocalTime day' (TimeOfDay hour minute second) <-
         case [lt | InitTime lt <- opts] of
             lt:_ -> parseTimeM True defaultTimeLocale "%Y-%-m-%-d %-H:%-M:%-S" lt
             _ -> zonedTimeToLocalTime <$> getZonedTime
     let (year, month, day) = toGregorian day'
-    zipWithM_ writeInteger [1024..1029] [floor second, minute, hour, day, month, fromIntegral year]
-    -- Run the simulator
+    zipWithM_ writeInteger [1024..1029] [floor second, minute, hour, day, month, fromInteger year]
+
+    -- Run the simulation
     let getValue x s = return (replicate s False)
         getSystemSeconds = systemSeconds <$> getSystemTime
     lastSecond <- newIORef =<< getSystemSeconds
@@ -62,11 +69,13 @@ main = do
             s' <- readIORef lastSecond
             writeIORef lastSecond s
             t <- readInteger 1030
-            writeInteger 1030 (t + fromIntegral (s - s'))
+            writeInteger 1030 (t + s - s')
+
         -- Run one step
         runStep m getValue
+
         -- Print the time
         [second, minute, hour, day, month, year] <-
-            mapM readInteger [1024..1029]
+            mapM readInteger [1024..1029] :: IO [Integer]
         printf "\r%04d-%02d-%02d %02d:%02d:%02d" year month day hour minute second
         hFlush stdout
