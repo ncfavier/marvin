@@ -1,4 +1,4 @@
-GHCFLAGS ?= -O2 -dynamic
+GHCFLAGS := $(GHCFLAGS) -O2
 
 .PHONY: run
 run: simulator ram.bin proc.net
@@ -20,4 +20,8 @@ ram.bin: assembler clock.asm
 
 .PHONY: clean
 clean:
-	rm -rf build simulator assembler ram.bin
+	rm -rf build simulator assembler ram.bin rom.bin proc.net
+
+.PHONY: archive
+archive:
+	tar -cvzf scapin.tar.gz src Makefile README.md proc.mj clock.asm

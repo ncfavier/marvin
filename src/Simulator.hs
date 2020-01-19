@@ -79,20 +79,14 @@ main = do
     let rom = listArray @UArray (0, romSize - 1) (romBits ++ repeat False)
     ramBits <- listBEFromFile "ram.bin"
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
-    let address s a = s * bitsFromListBE a
-        readRam a s ra = sequence [ readArray ram (address a ra + i)
-                                  | i <- [0..s - 1] ]
-        writeRam a s wa w = sequence_ [ writeArray ram (address a wa + i) v
-                                      | (i, v) <- zip [0..s - 1] w ]
-        readRom a s ra = [ rom ! (address a ra + i)
-                         | i <- [0..s - 1] ]
-    -- Make the environment
     env <- newIORef $ M.fromList [(x, replicate s False) | (x, s) <- vars]
     computed <- newIORef S.empty
-    let arg (Avar x) = do
-            compute x
-            (M.! x) <$> readIORef env
+    let readRam s ra    = mapM (readArray ram) [ra..ra + s - 1]
+        writeRam s wa w = zipWithM_ (writeArray ram) [wa..wa + s - 1] w
+        readRom s ra    = map (rom !) [ra..ra + s - 1]
         arg (Aconst (Value l)) = return l
+        arg (Avar x)           = compute x
+        address s a = (s *) . bitsFromListBE <$> arg a
         compute x = do
             c <- S.member x <$> readIORef computed
             unless c do
@@ -108,17 +102,19 @@ main = do
                     Econcat a b  -> (++) <$> arg a <*> arg b
                     Eslice i j a -> slice i j <$> arg a
                     Eselect i a  -> slice i i <$> arg a
-                    Erom a s ra  -> readRom a s <$> arg ra
+                    Erom a s ra  -> readRom s <$> address a ra
                     Eram a s ra we wa w -> do
-                        rv <- readRam a s =<< arg ra
-                        we' <- or <$> arg we
-                        when we' do
-                            join $ writeRam a s <$> arg wa <*> arg w
-                        return rv
+                        r <- readRam s =<< address a ra
+                        we <- or <$> arg we
+                        when we do
+                            join $ writeRam s <$> address a wa <*> arg w
+                        return r
                 modifyIORef' env $ M.insert x v
                 modifyIORef' computed $ S.insert x
+            (M.! x) <$> readIORef env
     -- Simulate
     let ramvars = [x | (x, Eram{}) <- M.assocs equations]
+        regvars = [x | (_, Ereg x) <- M.assocs equations]
     forM_ steps \i -> do
         printf "Step %d:\n" i
         forM_ invars \x -> do
@@ -126,9 +122,11 @@ main = do
             v <- getValue x s
             modifyIORef' env $ M.insert x v
         writeIORef computed S.empty
-        forM_ ramvars compute
+        forM_ (ramvars ++ regvars) compute
         forM_ outvars \x -> do
-            compute x
+            v <- compute x
             printf "=> %s = " x
-            v <- (M.! x) <$> readIORef env
             print (Value v)
+        forM_ [1024..1026 :: Int] \a -> do
+            v <- bitsFromListBE <$> readRam 42 (42 * a)
+            printf "RAM %d = %d\n" a v
