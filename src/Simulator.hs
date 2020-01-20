@@ -43,7 +43,7 @@ data Machine = Machine { netlist  :: Netlist
                        , ram      :: IOUArray Int Bool
                        , rom      :: UArray Int Bool
                        , env      :: IORef (Map Variable [Bool])
-                       , computed :: IORef (Set Variable)
+                       , oldEnv   :: IORef (Map Variable [Bool])
                        , roots    :: [Variable]
                        }
 
@@ -60,15 +60,15 @@ newMachine netlist@Netlist{..} = do
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
     (romBits, romSize) <- readImage "rom.img"
     let rom = listArray @UArray (0, romSize - 1) (romBits ++ repeat False)
-    env <- newIORef $ M.map (\s -> replicate s False) vars
-    computed <- newIORef S.empty
+    env <- newIORef M.empty
+    oldEnv <- newIORef $ M.map (\s -> replicate s False) vars
     let ramvars = [x | (x, Eram{}) <- M.assocs equations]
         regvars = [x | (_, Ereg x) <- M.assocs equations]
         roots = nub (ramvars ++ regvars ++ outvars)
     return Machine{..}
 
 getVariable m@Machine{..} x = do
-    computed <- S.member x <$> readIORef computed
+    computed <- M.member x <$> readIORef env
     unless computed $ compute m x
     (M.! x) <$> readIORef env
 
@@ -85,7 +85,7 @@ readRom Machine{..} s ra = map (rom !) [ra*s..(ra + 1)*s - 1]
 compute m@Machine{ netlist = Netlist{..}, .. } x = do
     v <- case equations M.! x of
         Earg a       -> arg a
-        Ereg x       -> (M.! x) <$> readIORef env
+        Ereg x       -> (M.! x) <$> readIORef oldEnv
         Enot a       -> map not <$> arg a
         Eor a b      -> zipWith (||) <$> arg a <*> arg b
         Exor a b     -> zipWith (/=) <$> arg a <*> arg b
@@ -101,15 +101,14 @@ compute m@Machine{ netlist = Netlist{..}, .. } x = do
             r <$ whenM (or <$> arg we) do
                 join $ writeRam m s . bitsToInteger <$> arg wa <*> arg w
     modifyIORef' env $ M.insert x v
-    modifyIORef' computed $ S.insert x
     where
         arg (Aconst (Value l)) = return l
         arg (Avar x)           = getVariable m x
 
 runStep m@Machine{ netlist = Netlist{..}, .. } getValue = do
-    writeIORef computed S.empty
+    writeIORef env M.empty
     forM_ invars \x -> do
         v <- getValue x (vars M.! x)
         modifyIORef' env $ M.insert x v
-        modifyIORef' computed $ S.insert x
     forM_ roots \x -> getVariable m x
+    writeIORef oldEnv =<< readIORef env
