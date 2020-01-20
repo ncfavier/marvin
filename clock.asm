@@ -42,10 +42,10 @@ loop:
     load DAY
     sub 31 ; if (MONTH & 1) ^ (MONTH & 8), sub 32
     jump end_february
-    february:
+february:
     load DAY
     sub 29 ; if leap year, sub 30
-    end_february:
+end_february:
     jl loop
 
     add 1
