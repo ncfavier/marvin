@@ -35,4 +35,4 @@ clean:
 
 .PHONY: archive
 archive:
-	git archive -v --prefix=scapin/ -o scapin.tar.gz HEAD
+	git archive -v --prefix=marvin/ -o marvin.tar.gz HEAD

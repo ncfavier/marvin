@@ -1,4 +1,4 @@
-# [scapin](https://git.monade.li/scapin)
+# [marvin](https://git.monade.li/marvin)
 
 Ce projet est réalisé en Haskell (GHC 8.6.5), et dépend des bibliothèques `base`, `containers`, `array`, `mtl`, `megaparsec` et `time`.
 
