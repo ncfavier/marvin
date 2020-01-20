@@ -20,14 +20,6 @@ type Variable = Int
 
 newtype Value = Value [Bool]
 
-instance Show Value where
-    show (Value l) = bool '0' '1' <$> l
-
-instance Read Value where
-    readsPrec _ s = case evalState (runParserT value "" s) M.empty of
-        Right v -> [(v, "")]
-        _ -> []
-
 data Argument = Avar Variable | Aconst Value
               deriving Show
 
@@ -49,10 +41,19 @@ data Expression = Earg Argument
 data Netlist = Netlist { invars    :: [Variable]
                        , outvars   :: [Variable]
                        , vars      :: Array Variable (String, Int)
+                       , varBounds :: (Variable, Variable)
                        , equations :: Array Variable (Maybe Expression)
                        }
 
 type Parser = ParsecT Void String (State (Map String Variable))
+
+instance Show Value where
+    show (Value l) = bool '0' '1' <$> l
+
+instance Read Value where
+    readsPrec _ s = case evalState (runParserT value "" s) M.empty of
+        Right v -> [(v, "")]
+        _ -> []
 
 readNetlist f = do
     input <- readFile f
@@ -83,15 +84,16 @@ netlist = do
     outvars' <- lexeme ident `sepBy` symbol ","
     symbol "VAR"
     varsAndSizes <- varAndSize `sepBy` symbol ","
-    let bounds = (0, length varsAndSizes - 1)
-        names = M.fromList [(x, i) | (i, (x, _)) <- zip [0..] varsAndSizes]
+    let names = M.fromList [(x, i) | (i, (x, _)) <- zip [0..] varsAndSizes]
     put names
     symbol "IN"
     equations' <- concat <$> many (lineWhitespace >> option [] equation <* eol)
+    eof
     let invars = map (names M.!) invars'
         outvars = map (names M.!) outvars'
-        vars = listArray bounds varsAndSizes
-        equations = accumArray (const Just) Nothing bounds equations'
+        varBounds = (0, length varsAndSizes - 1)
+        vars = listArray varBounds varsAndSizes
+        equations = accumArray (const Just) Nothing varBounds equations'
     return Netlist{..}
 
 varAndSize = do
@@ -106,8 +108,7 @@ equation = do
     return [(x, exp)]
 
 value = do
-    l <- some $ False <$ satisfy (\c -> c == '0' || c == 'f')
-             <|> True <$ satisfy (\c -> c == '1' || c == 't')
+    l <- some $ False <$ oneOf "0f" <|> True <$ oneOf "1t"
     return (Value l)
 
 variable = do

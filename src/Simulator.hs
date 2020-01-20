@@ -41,7 +41,6 @@ data Machine = Machine { netlist   :: Netlist
                        , env       :: IOArray Variable [Bool]
                        , fresh     :: IORef (IOUArray Variable Bool)
                        , roots     :: [Variable]
-                       , varBounds :: (Int, Int)
                        , input     :: String -> Int -> IO [Bool]
                        }
 
@@ -58,7 +57,6 @@ newMachine netlist@Netlist{..} input = do
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
     (romBits, romSize) <- readImage "rom.img"
     let rom = listArray @UArray (0, romSize - 1) (romBits ++ repeat False)
-        varBounds = bounds vars
     env <- newListArray varBounds [replicate s False | (_, s) <- elems vars]
     fresh <- newIORef =<< newArray varBounds False
     let ramvars = [x | (x, Just Eram{}) <- assocs equations]
