@@ -64,7 +64,7 @@ newMachine netlist@Netlist{..} = do
     oldEnv <- newIORef $ M.map (\s -> replicate s False) vars
     let ramvars = [x | (x, Eram{}) <- M.assocs equations]
         regvars = [x | (_, Ereg x) <- M.assocs equations]
-        roots = nub (ramvars ++ regvars ++ outvars)
+        roots = nub (ramvars ++ regvars ++ invars ++ outvars)
     return Machine{..}
 
 getVariable m@Machine{..} x = do

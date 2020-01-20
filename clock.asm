@@ -1,64 +1,64 @@
-SECOND = 1024
-MINUTE = 1025
-HOUR   = 1026
-DAY    = 1027
-MONTH  = 1028
-YEAR   = 1029
-SYNC   = 1030
+second = 1024
+minute = 1025
+hour   = 1026
+day    = 1027
+month  = 1028
+year   = 1029
+sync   = 1030
 
 loop:
-    load SYNC
+    lda sync
     jz loop
     sub 1
-    store SYNC
+    sta sync
 
-    load SECOND
+    lda second
     add 1
-    store SECOND
+    sta second
     sub 60
     jl loop
 
-    store SECOND
-    load MINUTE
+    sta second
+    lda minute
     add 1
-    store MINUTE
+    sta minute
     sub 60
     jl loop
 
-    store MINUTE
-    load HOUR
+    sta minute
+    lda hour
     add 1
-    store HOUR
+    sta hour
     sub 24
     jl loop
 
-    store HOUR
-    load DAY
+    sta hour
+    lda day
     add 1
-    store DAY
-    load MONTH
+    sta day
+    lda month
     sub 2
     jz february
-    load DAY
-    sub 31 ; if (MONTH & 1) ^ (MONTH & 8), sub 32
-    jump end_february
+    lda day
+    sub 31 ; if (month & 1) ^ (month & 8), sub 32
+    jmp end_february
 february:
-    load DAY
+    lda day
     sub 29 ; if leap year, sub 30
 end_february:
     jl loop
 
     add 1
-    store DAY
-    load MONTH
+    sta day
+    lda month
     add 1
-    store MONTH
+    sta month
     sub 13
     jl loop
 
     add 1
-    store MONTH
-    load YEAR
+    sta month
+    lda year
     add 1
-    store YEAR
-    jump loop
+    sta year
+    jmp loop

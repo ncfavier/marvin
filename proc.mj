@@ -4,8 +4,8 @@ const WORD = 42
 
 (* Utilities *)
 
-signal<n, i>(ins:[n]) = s where
-    s = ins[(n - 1) - i];
+signal<n, i>(a:[n]) = s where
+    s = a[(n - 1) - i];
 end where
 
 replicate<n>(b) = o:[n] where
@@ -29,19 +29,19 @@ increment<n>(a:[n]) = o:[n] where
     o = increment_i<n, 0>(a, 1);
 end where
 
-add_i<n, i>(a:[n], b:[n], sub, c_in) = o:[n - i] where
+addsub_i<n, i>(a:[n], b:[n], sub, c_in) = o:[n - i] where
     if i = n then
         o = [];
     else
         ai = a[(n - 1) - i];
         bi = b[(n - 1) - i] ^ sub;
         x = ai ^ bi;
-        o = add_i<n, i + 1>(a, b, sub, (ai & bi) + (x & c_in)) . x ^ c_in;
+        o = addsub_i<n, i + 1>(a, b, sub, (ai & bi) + (x & c_in)) . x ^ c_in;
     end if
 end where
 
-add<n>(a:[n], b:[n], sub) = o:[n] where
-    o = add_i<n, 0>(a, b, sub, sub);
+addsub<n>(a:[n], b:[n], sub) = o:[n] where
+    o = addsub_i<n, 0>(a, b, sub, sub);
 end where
 
 mul_i<n, i>(a:[n], b:[n]) = o:[n] where
@@ -49,7 +49,7 @@ mul_i<n, i>(a:[n], b:[n]) = o:[n] where
         o = replicate<n>(0);
     else
         oi1 = mul_i<n, i + 1>(a, b);
-        s = add<n>(oi1, a[i..] . replicate<i>(0), false);
+        s = addsub<n>(oi1, a[i..] . replicate<i>(0), false);
         o = mux<1, n>(b[i], s, oi1);
     end if
 end where
@@ -65,15 +65,16 @@ divmod_i<n, i>(a:[n], b:[n]) = (q:[n - i], r:[n - i]) where
     else
         (qi1, ri1) = divmod_i<n, i + 1>(a, b);
         r1 = ri1 . a[(n - 1) - i];
-        d = add<n>(replicate<i>(0) . r1, b, true);
+        d = addsub<n>(replicate<i>(0) . r1, b, true);
         l = d[0];
         r = mux<1, n - i>(l, r1, d[i..]);
         q = qi1 . not(l);
     end if
 end where
 
-divmod<n>(a:[n], b:[n]) = (q:[n], r:[n]) where
+divmod<n>(a:[n], b:[n], mod) = o:[n] where
     (q, r) = divmod_i<n, 0>(a, b);
+    o = mux<1, n>(mod, r, q);
 end where
 
 (* Main *)
@@ -85,45 +86,52 @@ main() = () where
     (* Registers *)
     pc_reg = reg(pc);
     a_reg = reg(a);
+    b_reg = reg(b);
 
     (* Flags *)
     flag_zero = mux<WORD, 1>(a_reg, false, true);
     flag_sign = a_reg[0];
 
     (* Fetch *)
-    ins = ram<WORD, WORD>(pc_reg, false, zero, zero);
+    ins0 = ram<WORD, WORD>(pc_reg, false, zero, zero);
     pc1 = increment<WORD>(pc_reg);
-    op = ram<WORD, WORD>(pc1, false, zero, zero);
+    ins1 = ram<WORD, WORD>(pc1, false, zero, zero);
     pc2 = increment<WORD>(pc1);
+    ins2 = ram<WORD, WORD>(pc2, false, zero, zero);
+    pc3 = increment<WORD>(pc2);
 
     (* Decode *)
-    signal_a_in    = signal<WORD, 0>(ins);
-    signal_a_out   = signal<WORD, 1>(ins);
-    signal_ram_in  = signal<WORD, 2>(ins);
-    signal_ram_out = signal<WORD, 3>(ins);
-    signal_add_out = signal<WORD, 4>(ins);
-    signal_sub     = signal<WORD, 5>(ins);
-    signal_jump    = signal<WORD, 6>(ins);
-    signal_zero    = signal<WORD, 7>(ins);
-    signal_less    = signal<WORD, 8>(ins);
+    signal_a_in    = signal<WORD,  0>(ins0);
+    signal_a_out   = signal<WORD,  1>(ins0);
+    signal_b_in    = signal<WORD,  2>(ins0);
+    signal_b_out   = signal<WORD,  3>(ins0);
+    signal_ram_in  = signal<WORD,  4>(ins0);
+    signal_ram_out = signal<WORD,  5>(ins0);
+    signal_add_out = signal<WORD,  6>(ins0);
+    signal_sub     = signal<WORD,  7>(ins0);
+    signal_jump    = signal<WORD,  8>(ins0);
+    signal_zero    = signal<WORD,  9>(ins0);
+    signal_less    = signal<WORD, 10>(ins0);
 
     (* RAM access *)
-    ram_out = ram<WORD, WORD>(op, signal_ram_in, op, a_reg);
+    ram_out = ram<WORD, WORD>(ins1, signal_ram_in, ins1, bus);
 
     (* Arithmetic *)
-    add_out = add<WORD>(a_reg, op, signal_sub);
+    add_out = addsub<WORD>(a_reg, ins1, signal_sub);
 
     (* Bus *)
-    bus = mux<1, WORD>(signal_ram_out, ram_out,
+    bus = mux<1, WORD>(signal_a_out, a,
+          mux<1, WORD>(signal_b_out, b,
+          mux<1, WORD>(signal_ram_out, ram_out,
           mux<1, WORD>(signal_add_out, add_out,
-          mux<1, WORD>(signal_a_out, a,
-          zero)));
+          zero))));
 
     (* Update registers *)
     a = mux<1, WORD>(signal_a_in, bus, a_reg);
+    b = mux<1, WORD>(signal_b_in, bus, b_reg);
 
     (* Jump *)
     jump = signal_jump & (not(signal_less) + flag_sign)
                        & (not(signal_zero) + flag_zero);
-    pc = mux<1, WORD>(jump, op, pc2);
+    pc = mux<1, WORD>(jump, ins1, pc3);
 end where
