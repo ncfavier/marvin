@@ -34,8 +34,8 @@ main = do
         [f] -> Just ([1..], f)
         _ -> Nothing
     netlist@Netlist{..} <- readNetlist f
-    m <- newMachine netlist
+    m <- newMachine netlist getValue
     forM_ steps \i -> do
         printf "Step %d:\n" i
-        runStep m getValue
+        runStep m
         mapM_ (printVariable m) outvars

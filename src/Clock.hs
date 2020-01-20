@@ -44,7 +44,8 @@ main = do
     netlist@Netlist{..} <- readNetlist f
 
     -- Create a machine
-    m <- newMachine netlist
+    let getValue x s = return (replicate s False)
+    m <- newMachine netlist getValue
     let readInteger a = bitsToInteger <$> readRam m wordSize a
         writeInteger a i = writeRam m wordSize a (bitsFromInteger wordSize i)
 
@@ -57,8 +58,7 @@ main = do
     zipWithM_ writeInteger [1024..1029] [floor second, minute, hour, day, month, fromInteger year]
 
     -- Run the simulation
-    let getValue x s = return (replicate s False)
-        getSystemSeconds = systemSeconds <$> getSystemTime
+    let getSystemSeconds = systemSeconds <$> getSystemTime
     lastSecond <- newIORef =<< getSystemSeconds
     forever do
         -- Update the time difference
@@ -72,7 +72,7 @@ main = do
             writeInteger 1030 (t + s - s')
 
         -- Run one step
-        runStep m getValue
+        runStep m
 
         -- Print the time
         [second, minute, hour, day, month, year] <-

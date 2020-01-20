@@ -35,12 +35,14 @@ bitsFromInteger s n = [testBit n i | i <- [s' - 1, s' - 2..0]]
 
 whenM c a = do c <- c; when c a
 
-data Machine = Machine { netlist :: Netlist
-                       , ram     :: IOUArray Int Bool
-                       , rom     :: UArray Int Bool
-                       , env     :: IOArray Variable [Bool]
-                       , fresh   :: IORef (IOUArray Variable Bool)
-                       , roots   :: [Variable]
+data Machine = Machine { netlist   :: Netlist
+                       , ram       :: IOUArray Int Bool
+                       , rom       :: UArray Int Bool
+                       , env       :: IOArray Variable [Bool]
+                       , fresh     :: IORef (IOUArray Variable Bool)
+                       , roots     :: [Variable]
+                       , varBounds :: (Int, Int)
+                       , input     :: String -> Int -> IO [Bool]
                        }
 
 readImage f = do
@@ -51,7 +53,7 @@ readImage f = do
             (foldMap (bitsFromInteger wordSize) ns', fromIntegral (wordSize * size))
         _ -> ([], 0)
 
-newMachine netlist@Netlist{..} = do
+newMachine netlist@Netlist{..} input = do
     (ramBits, ramSize) <- readImage "ram.img"
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
     (romBits, romSize) <- readImage "rom.img"
@@ -59,8 +61,8 @@ newMachine netlist@Netlist{..} = do
         varBounds = bounds vars
     env <- newListArray varBounds [replicate s False | (_, s) <- elems vars]
     fresh <- newIORef =<< newArray varBounds False
-    let ramvars = [x | (x, Eram{}) <- assocs equations]
-        regvars = [x | (_, Ereg x) <- assocs equations]
+    let ramvars = [x | (x, Just Eram{}) <- assocs equations]
+        regvars = [x | (_, Just (Ereg x)) <- assocs equations]
         roots = nub (ramvars ++ regvars ++ invars ++ outvars)
     return Machine{..}
 
@@ -83,22 +85,26 @@ readRom Machine{..} s ra = map (rom !) [ra*s..(ra + 1)*s - 1]
 
 compute m@Machine{ netlist = Netlist{..}, .. } x = do
     v <- case equations ! x of
-        Earg a       -> arg a
-        Ereg x       -> readArray env x
-        Enot a       -> map not <$> arg a
-        Eor a b      -> zipWith (||) <$> arg a <*> arg b
-        Exor a b     -> zipWith (/=) <$> arg a <*> arg b
-        Eand a b     -> zipWith (&&) <$> arg a <*> arg b
-        Enand a b    -> zipWith nand <$> arg a <*> arg b
-        Emux s a b   -> bool (arg b) (arg a) . or =<< arg s
-        Econcat a b  -> (++) <$> arg a <*> arg b
-        Eslice i j a -> slice i j <$> arg a
-        Eselect i a  -> slice i i <$> arg a
-        Erom _ s ra  -> readRom m s . bitsToInteger <$> arg ra
-        Eram _ s ra we wa w -> do
-            r <- readRam m s . bitsToInteger =<< arg ra
-            r <$ whenM (or <$> arg we) do
-                join $ writeRam m s . bitsToInteger <$> arg wa <*> arg w
+        Just exp -> case exp of
+            Earg a       -> arg a
+            Ereg x       -> readArray env x
+            Enot a       -> map not <$> arg a
+            Eor a b      -> zipWith (||) <$> arg a <*> arg b
+            Exor a b     -> zipWith (/=) <$> arg a <*> arg b
+            Eand a b     -> zipWith (&&) <$> arg a <*> arg b
+            Enand a b    -> zipWith nand <$> arg a <*> arg b
+            Emux s a b   -> bool (arg b) (arg a) . or =<< arg s
+            Econcat a b  -> (++) <$> arg a <*> arg b
+            Eslice i j a -> slice i j <$> arg a
+            Eselect i a  -> slice i i <$> arg a
+            Erom _ s ra  -> readRom m s . bitsToInteger <$> arg ra
+            Eram _ s ra we wa w -> do
+                r <- readRam m s . bitsToInteger =<< arg ra
+                r <$ whenM (or <$> arg we) do
+                    join $ writeRam m s . bitsToInteger <$> arg wa <*> arg w
+        Nothing -> do
+            let (n, s) = vars ! x
+            input n s
     writeArray env x v
     fresh <- readIORef fresh
     writeArray fresh x True
@@ -106,12 +112,6 @@ compute m@Machine{ netlist = Netlist{..}, .. } x = do
         arg (Aconst (Value l)) = return l
         arg (Avar x)           = getVariable m x
 
-runStep m@Machine{ netlist = Netlist{..}, .. } getValue = do
-    writeIORef fresh =<< newArray (bounds vars) False
-    forM_ invars \x -> do
-        let (n, s) = vars ! x
-        v <- getValue n s
-        writeArray env x v
-        fresh <- readIORef fresh
-        writeArray fresh x True
-    forM_ roots \x -> getVariable m x
+runStep m@Machine{ netlist = Netlist{..}, .. } = do
+    writeIORef fresh =<< newArray varBounds False
+    mapM_ (getVariable m) roots

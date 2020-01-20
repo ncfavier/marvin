@@ -24,11 +24,12 @@ instance Show Value where
     show (Value l) = bool '0' '1' <$> l
 
 instance Read Value where
-    readsPrec _ s = case evalState (runParserT value "" s) initialEnvironment of
+    readsPrec _ s = case evalState (runParserT value "" s) M.empty of
         Right v -> [(v, "")]
         _ -> []
 
 data Argument = Avar Variable | Aconst Value
+              deriving Show
 
 data Expression = Earg Argument
                 | Ereg Variable
@@ -43,22 +44,19 @@ data Expression = Earg Argument
                 | Eselect Int Argument
                 | Erom Int Int Argument
                 | Eram Int Int Argument Argument Argument Argument
+                deriving Show
 
 data Netlist = Netlist { invars    :: [Variable]
                        , outvars   :: [Variable]
                        , vars      :: Array Variable (String, Int)
-                       , equations :: Array Variable Expression
+                       , equations :: Array Variable (Maybe Expression)
                        }
 
-data Environment = Environment { names :: Map String Variable }
-
-initialEnvironment = Environment M.empty
-
-type Parser = ParsecT Void String (State Environment)
+type Parser = ParsecT Void String (State (Map String Variable))
 
 readNetlist f = do
     input <- readFile f
-    let r = flip evalState initialEnvironment $ runParserT netlist f input
+    let r = flip evalState M.empty $ runParserT netlist f input
     either (die . errorBundlePretty) return r
 
 whitespace = L.space space1 empty empty
@@ -85,15 +83,15 @@ netlist = do
     outvars' <- lexeme ident `sepBy` symbol ","
     symbol "VAR"
     varsAndSizes <- varAndSize `sepBy` symbol ","
-    let nVars = length varsAndSizes
-    let names = M.fromList [(x, i) | (i, (x, _)) <- zip [0..] varsAndSizes]
-    modify' $ \e -> e { names }
+    let bounds = (0, length varsAndSizes - 1)
+        names = M.fromList [(x, i) | (i, (x, _)) <- zip [0..] varsAndSizes]
+    put names
     symbol "IN"
-    equations <- array (0, nVars - 1) . concat <$> many (lineWhitespace >> option [] equation <* eol)
-    eof
+    equations' <- concat <$> many (lineWhitespace >> option [] equation <* eol)
     let invars = map (names M.!) invars'
         outvars = map (names M.!) outvars'
-        vars = listArray (0, nVars - 1) varsAndSizes
+        vars = listArray bounds varsAndSizes
+        equations = accumArray (const Just) Nothing bounds equations'
     return Netlist{..}
 
 varAndSize = do
@@ -114,7 +112,7 @@ value = do
 
 variable = do
     v <- lineLexeme ident
-    names <- gets names
+    names <- get
     return (names M.! v)
 
 argument = Avar <$> try variable <|> Aconst <$> lineLexeme value

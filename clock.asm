@@ -35,7 +35,7 @@ loop:
 
     mov *month %a
     sub 2 %a
-    jz february
+    je february
     add 2 %a
     mov %a %c
     and 8 %a
@@ -43,38 +43,36 @@ loop:
     and 1 %c
     test %c %c
     xor %a %c
-    and 31 %c
+    add 30 %c
     jmp end_february
 february:
-    mov 29 %c
+    mov 28 %c
     mov *year %b
     mov %b %a
     mod 4 %a
     jnz end_february
-    mov 30 %c
+    mov 29 %c
     mov %b %a
     mod 100 %a
     jnz end_february
-    mov 29 %c
+    mov 28 %c
     mov %b %a
     mod 400 %a
     jnz end_february
-    mov 30 %c
+    mov 29 %c
 end_february:
     mov *day %a
     inc %a
     mov %a *day
     sub %c %a
-    jl loop
-    inc %a
+    jle loop
     mov %a *day
 
     mov *month %a
     inc %a
     mov %a *month
-    sub 13 %a
-    jl loop
-    inc %a
+    sub 12 %a
+    jle loop
     mov %a *month
 
     mov *year %a

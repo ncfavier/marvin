@@ -158,23 +158,24 @@ main() = () where
     pc3 = increment<WORD>(pc2);
 
     (* Decode *)
-    signal_mov    = signal<WORD,  0>(ins0);
-    signal_addsub = signal<WORD,  1>(ins0);
-    signal_sub    = signal<WORD,  2>(ins0);
-    signal_inc    = signal<WORD,  3>(ins0);
-    signal_dec    = signal<WORD,  4>(ins0);
-    signal_mul    = signal<WORD,  5>(ins0);
-    signal_divmod = signal<WORD,  6>(ins0);
-    signal_mod    = signal<WORD,  7>(ins0);
-    signal_not    = signal<WORD,  8>(ins0);
-    signal_and    = signal<WORD,  9>(ins0);
-    signal_or     = signal<WORD, 10>(ins0);
-    signal_xor    = signal<WORD, 11>(ins0);
-    signal_test   = signal<WORD, 12>(ins0);
-    signal_jump   = signal<WORD, 13>(ins0);
-    signal_zero   = signal<WORD, 14>(ins0);
-    signal_less   = signal<WORD, 15>(ins0);
-    signal_inv    = signal<WORD, 16>(ins0);
+    signal_mov     = signal<WORD,  0>(ins0);
+    signal_addsub  = signal<WORD,  1>(ins0);
+    signal_sub     = signal<WORD,  2>(ins0);
+    signal_inc     = signal<WORD,  3>(ins0);
+    signal_dec     = signal<WORD,  4>(ins0);
+    signal_mul     = signal<WORD,  5>(ins0);
+    signal_divmod  = signal<WORD,  6>(ins0);
+    signal_mod     = signal<WORD,  7>(ins0);
+    signal_not     = signal<WORD,  8>(ins0);
+    signal_and     = signal<WORD,  9>(ins0);
+    signal_or      = signal<WORD, 10>(ins0);
+    signal_xor     = signal<WORD, 11>(ins0);
+    signal_test    = signal<WORD, 12>(ins0);
+    signal_jump    = signal<WORD, 13>(ins0);
+    signal_zero    = signal<WORD, 14>(ins0);
+    signal_less    = signal<WORD, 15>(ins0);
+    signal_greater = signal<WORD, 16>(ins0);
+    signal_inv     = signal<WORD, 17>(ins0);
 
     (op1_mem, op1_a, op1_b, op1_c, op1_d, op1_imm) = decode_operand(ins1);
     op1 = mux<1, WORD>(op1_mem, ram_out,
@@ -226,7 +227,9 @@ main() = () where
     d = mux<1, WORD>(signal_mov & op2_d, bus, d_reg);
 
     (* Jump *)
-    jump = signal_jump & (not(signal_less) + (signal_inv ^ flag_sign))
-                       & (not(signal_zero) + (signal_inv ^ flag_zero));
+    jump = signal_jump & (not(signal_less)    + (signal_inv ^ flag_sign))
+                       & (not(signal_greater) + (signal_inv ^ ( not(flag_sign)
+                                                              & not(flag_zero))))
+                       & (not(signal_zero)    + (signal_inv ^ flag_zero));
     pc = mux<1, WORD>(jump, op1, pc3);
 end where

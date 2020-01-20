@@ -119,10 +119,15 @@ code = M.fromList
     , ("test", mov .|. test)
     , ("jmp",  jump)
     , ("jz",   jump .|. zero)
+    , ("je",   jump .|. zero)
     , ("jnz",  jump .|. zero .|. inv)
+    , ("jne",  jump .|. zero .|. inv)
     , ("jl",   jump .|. less)
     , ("jnl",  jump .|. less .|. inv)
     , ("jge",  jump .|. less .|. inv)
+    , ("jg",   jump .|. greater)
+    , ("jng",  jump .|. greater .|. inv)
+    , ("jle",  jump .|. greater .|. inv)
     ]
     where {
         [ mov
@@ -141,6 +146,7 @@ code = M.fromList
         , jump
         , zero
         , less
+        , greater
         , inv
-        ] = bit <$> [0..16]
+        ] = bit <$> [0..17]
     }
