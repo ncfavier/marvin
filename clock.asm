@@ -51,7 +51,6 @@ end_sync:
     and 8 %a
     test %a %a
     and 1 %c
-    test %c %c
     xor %a %c
     add 30 %c
     jmp end_february
