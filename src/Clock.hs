@@ -56,20 +56,19 @@ main = do
             _ -> zonedTimeToLocalTime <$> getZonedTime
     let (year, month, day) = toGregorian day'
     zipWithM_ writeInteger [1024..1029] [floor second, minute, hour, day, month, fromInteger year]
+    unless async $ writeInteger 1030 1
 
     -- Run the simulation
     let getSystemSeconds = systemSeconds <$> getSystemTime
     lastSecond <- newIORef =<< getSystemSeconds
     forever do
         -- Update the time difference
-        if async then
-            writeInteger 1030 1
-        else do
+        unless async do
             s <- getSystemSeconds
             s' <- readIORef lastSecond
             writeIORef lastSecond s
-            t <- readInteger 1030
-            writeInteger 1030 (t + s - s')
+            t <- readInteger 1031
+            writeInteger 1031 (t + s - s')
 
         -- Run one step
         runStep m

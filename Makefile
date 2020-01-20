@@ -31,7 +31,7 @@ ram.img: assembler clock.asm
 
 .PHONY: clean
 clean:
-	rm -rf build dialog clock assembler ram.img rom.img proc.net
+	rm -rf build dialog clock assembler ram.img rom.img proc.net marvin.tar.gz
 
 .PHONY: archive
 archive:

@@ -226,7 +226,6 @@ main() = () where
     c = mux<1, WORD>(signal_mov & op2_c, bus, c_reg);
     d = mux<1, WORD>(signal_mov & op2_d, bus, d_reg);
 
-    (* Jump *)
     jump = signal_jump & (not(signal_less)    + (signal_inv ^ flag_sign))
                        & (not(signal_greater) + (signal_inv ^ ( not(flag_sign)
                                                               & not(flag_zero))))

@@ -10,11 +10,11 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Void
+import System.Environment
+import System.Exit
 import Text.Megaparsec hiding (State, label)
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import System.Environment
-import System.Exit
 
 data Environment = Environment { vars :: Map String Integer
                                , pos  :: Integer
@@ -43,8 +43,8 @@ main = do
                                   $ runParserT file f
                                   $ input
     output <- either (die . errorBundlePretty) return r
-    print wordSize -- word size
-    print 2048 -- ram size
+    print wordSize
+    print 2048
     let makeWord (Ins i) = i
         makeWord (Imm v) = getValue v `shiftL` 2
         makeWord (Mem v) = getValue v `shiftL` 2 .|. bit 0
@@ -89,7 +89,7 @@ label = do
     return []
 
 instruction = do
-    ins <- ident
+    ins <- map toLower <$> ident
     ops <- many operand
     let ops' | ins `elem` ["inc", "dec"] = Ins 0:ops
              | otherwise = ops
@@ -97,7 +97,7 @@ instruction = do
 
 operand = Reg <$> register <|> Mem <$> mem <|> Imm <$> value
 
-register = char '%' >> ident
+register = char '%' >> map toLower <$> ident
 
 mem = char '*' >> value
 

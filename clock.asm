@@ -1,17 +1,23 @@
-second = 1024
-minute = 1025
-hour   = 1026
-day    = 1027
-month  = 1028
-year   = 1029
-sync   = 1030
+second  = 1024
+minute  = 1025
+hour    = 1026
+day     = 1027
+month   = 1028
+year    = 1029
+sync    = 1030
+elapsed = 1031
 
 loop:
+    ; Synchronisation
     mov *sync %a
+    jz end_sync
+    mov *elapsed %a
     jz loop
     dec %a
-    mov %a *sync
+    mov %a *elapsed
+end_sync:
 
+    ; Seconds
     mov *second %a
     inc %a
     mov %a *second
@@ -19,6 +25,7 @@ loop:
     jl loop
     mov %a *second
 
+    ; Minutes
     mov *minute %a
     inc %a
     mov %a *minute
@@ -26,6 +33,7 @@ loop:
     jl loop
     mov %a *minute
 
+    ; Hours
     mov *hour %a
     inc %a
     mov %a *hour
@@ -33,9 +41,11 @@ loop:
     jl loop
     mov %a *hour
 
+    ; Store number of days in the month into %c
     mov *month %a
     sub 2 %a
     je february
+    ; Not February: the number of days is 30 + ((month & 8 >> 3) ^ (month & 1))
     add 2 %a
     mov %a %c
     and 8 %a
@@ -46,6 +56,7 @@ loop:
     add 30 %c
     jmp end_february
 february:
+    ; February: 29 days if leap year, 28 otherwise
     mov 28 %c
     mov *year %b
     mov %b %a
@@ -61,6 +72,8 @@ february:
     jnz end_february
     mov 29 %c
 end_february:
+
+    ; Days
     mov *day %a
     inc %a
     mov %a *day
@@ -68,6 +81,7 @@ end_february:
     jle loop
     mov %a *day
 
+    ; Months
     mov *month %a
     inc %a
     mov %a *month
@@ -75,6 +89,7 @@ end_february:
     jle loop
     mov %a *month
 
+    ; Years
     mov *year %a
     inc %a
     mov %a *year

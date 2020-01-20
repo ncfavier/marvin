@@ -22,6 +22,7 @@ On maintient un environnement associant une valeur à chaque variable de la netl
 
 La netlist n'est pas supposée triée : si une variable `a` dépend d'une variable `b`, on calculera `b` avant `a`. À chaque étape, on calcule uniquement les variables suivantes (et leurs dépendances) :
 
+- les variables d'entrée ;
 - les variables de sortie ;
 - les variables `x` apparaissant dans une équation de la forme `... = REG x` ;
 - les variables `x` apparaissant dans une équation de la forme `x = RAM ...`.
@@ -39,11 +40,7 @@ Le format pour les images RAM/ROM est le suivant :
 
 ## Microprocesseur
 
-La taille de mot utilisée est de 42 bits.
-
-Le microprocesseur comporte une ALU, une RAM, une ROM, ainsi que les registres `A`, `B` et `PC` (compteur d'instruction).
-
-La communication entre les composants se fait via un bus (un multiplexeur relié à chaque composant).
+Le microprocesseur manipule des mots de **42 bits**. Il comporte une ALU, une RAM, une ROM, ainsi que les registres `A`, `B`, `C`, `D` et `PC` (compteur d'instruction).
 
 Chaque instruction occupe exactement trois emplacements mémoire : un *opcode* et deux opérandes (optionnelles).
 
@@ -51,16 +48,17 @@ Les différentes parties du microprocesseur sont orchestrées par divers signaux
 
 Les instructions suivantes sont disponibles :
 
-- `add`, `sub` : addition, soustraction dans `A`
-- `mul`, `div`, `mod` : multiplication, division, modulo dans `A`
-- `and`, `or`, `xor`, `not` : opérations logiques dans `A`
-- `cmp` : comparaison
-- `jmp` : saut
-- `jeq`, `jne`, … : sauts conditionnels
-- `lda` : RAM → `A`
-- `sta` : `A` → RAM
+- `mov` : déplace une opérande vers l'autre ;
+- `add`, `sub` : addition, soustraction ;
+- `mul`, `div`, `mod` : multiplication, division, modulo ;
+- `not`, `and`, `or`, `xor` : opérations logiques ;
+- `test` : met la destination à 0 si la source vaut 0, à 1 sinon ;
+- `jmp` : saut ;
+- `jz`, `je`, `jnz`, `jne`, `jl`, `jnl`, `jge`, `jg`, `jng`, `jle` : sauts conditionnels par rapport au registre `A`.
 
-Chaque opérande peut faire référence à un entier, un registre, ou un emplacement mémoire.
+Les opérations arithmétiques et logiques prennent une opérande source et une opérande destination, et placent le résultat dans l'opérande destination.
+
+Les opérandes peuvent faire référence à un entier immédiat, un registre, ou un emplacement mémoire ; le type d'opérande est codé sur les deux bits de poids faible. Les deux opérandes ne peuvent pas faire référence à la mémoire en même temps.
 
 Le microprocesseur est écrit en minijazz (`proc.mj`), et compilé vers la netlist `proc.net`.
 
@@ -70,7 +68,7 @@ Il dépend d'une version légèrement modifiée de minijazz (fournie dans le dé
 
     assembler FILE
 
-L'assembleur permet de compiler depuis un langage assembleur simpliste vers une image RAM contenant un programme exécutable par le microprocesseur.
+L'assembleur permet de compiler depuis un langage assembleur vers une image RAM contenant un programme exécutable par le microprocesseur.
 
 Il supporte trois types d'instructions :
 
@@ -78,7 +76,13 @@ Il supporte trois types d'instructions :
 - les étiquettes : `label:` ;
 - les instructions machine : `ins [op1 [op2]]`.
 
-L'image RAM est écrite sur la sortie standard.
+Les opérandes sont de la forme :
+
+- registre : `%a` ;
+- mémoire : `*42`, `*foo` ;
+- immédiat : `42`, `foo`.
+
+L'image est écrite sur la sortie standard. La taille de l'image produite est fixée à 2048 mots.
 
 ## Horloge
 
@@ -91,9 +95,10 @@ L'option `-a` permet d'ignorer l'horloge système et de faire tourner l'horloge 
 Certains emplacements en mémoire sont utilisés pour l'entrée-sortie :
 
 - les adresses 1024 - 1029 contiennent les secondes, minutes, heures, jours, mois et années ;
-- l'adresse 1030 sert à la synchronisation : le simulateur ajoute 1 à cet emplacement pour chaque seconde écoulée, l'horloge soustrait 1 à chaque itération et s'arrête quand il atteint 0 (en mode asynchrone, on fixe cet emplacement à 1).
+- l'adresse 1030 est mise à 1 en mode synchrone, à 0 sinon ;
+- l'adresse 1031 sert à la synchronisation : le simulateur ajoute 1 à cet emplacement pour chaque seconde écoulée.
 
-Le programme assembleur de l'horloge se trouve dans `clock.asm`, et doit être compilé vers `ram.img`.
+Le programme assembleur de l'horloge se trouve dans `clock.asm`, et doit être compilé vers `ram.img`. La ROM n'est pas utilisée.
 
 L'horloge tient compte des années bissextiles.
 

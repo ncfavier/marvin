@@ -21,7 +21,6 @@ type Variable = Int
 newtype Value = Value [Bool]
 
 data Argument = Avar Variable | Aconst Value
-              deriving Show
 
 data Expression = Earg Argument
                 | Ereg Variable
@@ -36,7 +35,6 @@ data Expression = Earg Argument
                 | Eselect Int Argument
                 | Erom Int Int Argument
                 | Eram Int Int Argument Argument Argument Argument
-                deriving Show
 
 data Netlist = Netlist { invars    :: [Variable]
                        , outvars   :: [Variable]
