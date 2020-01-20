@@ -6399,7 +6399,7 @@ VAR
   s_5515 : 42, s_5628 : 42, s_5744 : 42, s_5863 : 42, s_5985 : 42, s_6110 : 42, 
   s_6238 : 42, s_6369 : 42, s_6503 : 42, s_6640 : 42, signal_addsub, 
   signal_and, signal_dec, signal_divmod, signal_greater, signal_inc, 
-  signal_inv, signal_jump, signal_less, signal_mod, signal_mov, signal_mul, 
+  signal_jump, signal_less, signal_mod, signal_mov, signal_mul, signal_neg, 
   signal_not, signal_or, signal_sub, signal_test, signal_xor, signal_zero, 
   test_out : 42, x_10007, x_10026, x_10045, x_10064, x_10083, x_10102, 
   x_10121, x_10140, x_10159, x_10198, x_10217, x_10236, x_10255, x_10274, 
@@ -42577,7 +42577,7 @@ _l_214_1753 = SELECT 38 ins1
 _l_216_1752 = SELECT 37 ins1
 _l_218_1751 = SELECT 36 ins1
 _l_220_1750 = SLICE 0 39 ins1
-signal_inv = SELECT 24 ins0
+signal_neg = SELECT 24 ins0
 signal_greater = SELECT 25 ins0
 signal_less = SELECT 26 ins0
 signal_zero = SELECT 27 ins0
@@ -42595,6 +42595,9 @@ signal_inc = SELECT 38 ins0
 signal_sub = SELECT 39 ins0
 signal_addsub = SELECT 40 ins0
 signal_mov = SELECT 41 ins0
+ins2 = RAM 42 42 pc2 0 zero zero
+ins1 = RAM 42 42 pc1 0 zero zero
+ins0 = RAM 42 42 pc_reg 0 zero zero
 pc3 = CONCAT _l_140_1346 _l_141_1345
 ai_1348 = SELECT 41 pc2
 _l_139_1347 = AND ai_1348 1
@@ -42763,7 +42766,6 @@ _l_141_1372 = XOR ai_1375 _l_139_1365
 _l_141_1363 = XOR ai_1366 _l_139_1356
 _l_141_1354 = XOR ai_1357 _l_139_1347
 _l_141_1345 = XOR ai_1348 1
-ins2 = RAM 42 42 pc2 0 zero zero
 pc2 = CONCAT _l_140_958 _l_141_957
 ai_960 = SELECT 41 pc1
 _l_139_959 = AND ai_960 1
@@ -42932,7 +42934,6 @@ _l_141_984 = XOR ai_987 _l_139_977
 _l_141_975 = XOR ai_978 _l_139_968
 _l_141_966 = XOR ai_969 _l_139_959
 _l_141_957 = XOR ai_960 1
-ins1 = RAM 42 42 pc1 0 zero zero
 pc1 = CONCAT _l_140_570 _l_141_569
 ai_572 = SELECT 41 pc_reg
 _l_139_571 = AND ai_572 1
@@ -43101,7 +43102,6 @@ _l_141_596 = XOR ai_599 _l_139_589
 _l_141_587 = XOR ai_590 _l_139_580
 _l_141_578 = XOR ai_581 _l_139_571
 _l_141_569 = XOR ai_572 1
-ins0 = RAM 42 42 pc_reg 0 zero zero
 flag_sign = SELECT 0 a_reg
 flag_zero = MUX a_reg 0 1 
 d_reg = REG d
@@ -43215,17 +43215,17 @@ _l_291 = AND signal_mov op2_b
 _l_293 = AND signal_mov op2_c
 _l_295 = AND signal_mov op2_d
 _l_297 = NOT signal_less
-_l_298 = XOR signal_inv flag_sign
+_l_298 = XOR signal_neg flag_sign
 _l_299 = OR _l_297 _l_298
 _l_300 = AND signal_jump _l_299
 _l_301 = NOT signal_greater
 _l_302 = NOT flag_sign
 _l_303 = NOT flag_zero
 _l_304 = AND _l_302 _l_303
-_l_305 = XOR signal_inv _l_304
+_l_305 = XOR signal_neg _l_304
 _l_306 = OR _l_301 _l_305
 _l_307 = AND _l_300 _l_306
 _l_308 = NOT signal_zero
-_l_309 = XOR signal_inv flag_zero
+_l_309 = XOR signal_neg flag_zero
 _l_310 = OR _l_308 _l_309
 
