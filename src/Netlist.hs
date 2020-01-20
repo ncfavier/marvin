@@ -1,12 +1,18 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Netlist where
 
+import Control.Monad
+import Control.Monad.State
 import Data.Bool
 import Data.Char
 import Data.Map (Map)
 import qualified Data.Map as M
-import Text.ParserCombinators.ReadP
-import Text.Read hiding ((<++))
+import Data.Void
+import System.Exit
+import Text.Megaparsec hiding (State)
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
 type Variable = String
 
@@ -16,7 +22,9 @@ instance Show Value where
     show (Value l) = bool '0' '1' <$> l
 
 instance Read Value where
-    readPrec = lift value
+    readsPrec _ s = case evalState (runParserT value "" s) initialEnvironment of
+        Right v -> [(v, "")]
+        _ -> []
 
 data Argument = Avar Variable | Aconst Value
 
@@ -40,93 +48,110 @@ data Netlist = Netlist { invars    :: [Variable]
                        , equations :: Map Variable Expression
                        }
 
-instance Read Netlist where
-    readPrec = lift netlist
+data Environment = Environment { names :: Map String Variable
+                               , next  :: Int
+                               }
 
-token p = skipSpaces >> p
+initialEnvironment = Environment M.empty 0
 
-comma = token (char ',')
-colon = token (char ':')
-equal = token (char '=')
+type Parser = ParsecT Void String (State Environment)
 
-identifier = token $ do
+readNetlist f = do
+    input <- readFile f
+    let r = flip evalState initialEnvironment $ runParserT netlist f input
+    either (die . errorBundlePretty) return r
+
+whitespace = L.space space1 empty empty
+lineWhitespace = L.space (skipSome (oneOf " \t")) empty empty
+
+lexeme = L.lexeme whitespace
+lineLexeme = L.lexeme lineWhitespace
+symbol = L.symbol whitespace
+lineSymbol = L.symbol lineWhitespace
+
+ident = try $ do
     c <- satisfy (\c -> isAlpha c || c == '_')
-    s <- munch (\c -> isAlphaNum c || c == '_')
+    s <- many $ satisfy (\c -> isAlphaNum c || c == '_')
+    let i = c:s
+    guard $ not $ i `elem` ["INPUT", "OUTPUT", "VAR", "IN"]
     return (c:s)
 
-operator s = token (string s)
+netlist :: Parser Netlist
+netlist = do
+    whitespace
+    symbol "INPUT"
+    invars <- lexeme ident `sepBy` symbol ","
+    symbol "OUTPUT"
+    outvars <- lexeme ident `sepBy` symbol ","
+    symbol "VAR"
+    vars <- M.fromList <$> varAndSize `sepBy` symbol ","
+    symbol "IN"
+    equations <- M.fromList . concat <$> many (lineWhitespace >> option [] equation <* eol)
+    eof
+    return Netlist{..}
 
-declaration = do
-    x <- identifier
-    size <- option 1 (colon >> integer)
+varAndSize = do
+    x <- lexeme ident
+    size <- option 1 (symbol ":" >> lexeme integer)
     return (x, size)
 
-value = token $ do
-    l <- many1 $ (False <$ char '0' <++ char 'f') <++ (True <$ char '1' <++ char 't')
+equation = do
+    x <- lineLexeme ident
+    lineSymbol "="
+    exp <- expression
+    return [(x, exp)]
+
+value = do
+    l <- some $ False <$ satisfy (\c -> c == '0' || c == 'f')
+             <|> True <$ satisfy (\c -> c == '1' || c == 't')
     return (Value l)
 
-argument = (Avar <$> identifier) <++ (Aconst <$> value)
+argument = Avar <$> try (lineLexeme ident) <|> Aconst <$> lineLexeme value
 
-integer = token $ read <$> munch1 isDigit
+integer = L.decimal
 
-expArg = Earg <$> argument
+expArg = try $ Earg <$> argument
 
-expReg = do
-    "REG" <- identifier
-    Ereg <$> identifier
+expReg = try $ do
+    "REG" <- lineLexeme ident
+    Ereg <$> lineLexeme ident
 
-expNot = do
-    "NOT" <- identifier
+expNot = try $ do
+    "NOT" <- lineLexeme ident
     Enot <$> argument
 
-expBinOp s c = do
-    operator s
+expBinOp s c = try $ do
+    o <- lineLexeme ident
+    guard (o == s)
     c <$> argument <*> argument
 
-expOr = expBinOp "OR" Eor
-expXor = expBinOp "XOR" Exor
-expAnd = expBinOp "AND" Eand
-expNand = expBinOp "NAND" Enand
+expOr = try $ expBinOp "OR" Eor
+expXor = try $ expBinOp "XOR" Exor
+expAnd = try $ expBinOp "AND" Eand
+expNand = try $ expBinOp "NAND" Enand
 
-expMux = do
-    "MUX" <- identifier
+expMux = try $ do
+    "MUX" <- lineLexeme ident
     Emux <$> argument <*> argument <*> argument
 
-expConcat = do
-    "CONCAT" <- identifier
+expConcat = try $ do
+    "CONCAT" <- lineLexeme ident
     Econcat <$> argument <*> argument
 
-expSlice = do
-    "SLICE" <- identifier
-    Eslice <$> integer <*> integer <*> argument
+expSlice = try $ do
+    "SLICE" <- lineLexeme ident
+    Eslice <$> lineLexeme integer <*> lineLexeme integer <*> argument
 
-expSelect = do
-    "SELECT" <- identifier
-    Eselect <$> integer <*> argument
+expSelect = try $ do
+    "SELECT" <- lineLexeme ident
+    Eselect <$> lineLexeme integer <*> argument
 
-expRom = do
-    "ROM" <- identifier
-    Erom <$> integer <*> integer <*> argument
+expRom = try $ do
+    "ROM" <- lineLexeme ident
+    Erom <$> lineLexeme integer <*> lineLexeme integer <*> argument
 
-expRam = do
-    "RAM" <- identifier
-    Eram <$> integer <*> integer <*> argument <*> argument <*> argument <*> argument
+expRam = try $ do
+    "RAM" <- lineLexeme ident
+    Eram <$> lineLexeme integer <*> lineLexeme integer <*> argument <*> argument <*> argument <*> argument
 
-expression = foldr1 (<++) [expReg, expNot, expOr, expXor, expAnd, expNand, expMux, expRom, expRam, expConcat, expSlice, expSelect, expArg]
-
-equation = do
-    x <- identifier
-    equal
-    exp <- expression
-    return (x, exp)
-
-netlist = do
-    "INPUT" <- identifier
-    invars <- identifier `sepBy` comma
-    "OUTPUT" <- identifier
-    outvars <- identifier `sepBy` comma
-    "VAR" <- identifier
-    vars <- M.fromList <$> declaration `sepBy` comma
-    "IN" <- identifier
-    equations <- M.fromList <$> many equation
-    return Netlist{..}
+expression = choice [expReg, expNot, expOr, expXor, expAnd, expNand, expMux, expRom, expRam, expConcat, expSlice, expSelect, expArg]

@@ -7,58 +7,60 @@ year   = 1029
 sync   = 1030
 
 loop:
-    lda sync
+    mov *sync %a
     jz loop
-    sub 1
-    sta sync
+    dec %a
+    mov %a *sync
 
-    lda second
-    add 1
-    sta second
-    sub 60
+    mov *second %a
+    inc %a
+    mov %a *second
+    sub 60 %a
     jl loop
+    mov %a *second
 
-    sta second
-    lda minute
-    add 1
-    sta minute
-    sub 60
+    mov *minute %a
+    inc %a
+    mov %a *minute
+    sub 60 %a
     jl loop
+    mov %a *minute
 
-    sta minute
-    lda hour
-    add 1
-    sta hour
-    sub 24
+    mov *hour %a
+    inc %a
+    mov %a *hour
+    sub 24 %a
     jl loop
+    mov %a *hour
 
-    sta hour
-    lda day
-    add 1
-    sta day
-    lda month
-    sub 2
+    mov *month %a
+    sub 2 %a
     jz february
-    lda day
-    sub 31 ; if (month & 1) ^ (month & 8), sub 32
+    add 2 %a
+    mov 31 %b ; if (month & 1) ^ (month & 8), 32
+    ; add 1? %b
     jmp end_february
 february:
-    lda day
-    sub 29 ; if leap year, sub 30
+    mov 29 %b ; if leap year, sub 30
 end_february:
+    mov *day %a
+    inc %a
+    mov %a *day
+    sub %b %a
     jl loop
+    inc %a
+    mov %a *day
 
-    add 1
-    sta day
-    lda month
-    add 1
-    sta month
-    sub 13
+    mov *month %a
+    inc %a
+    mov %a *month
+    sub 13 %a
     jl loop
+    inc %a
+    mov %a *month
 
-    add 1
-    sta month
-    lda year
-    add 1
-    sta year
+    mov *year %a
+    inc %a
+    mov %a *year
+
     jmp loop

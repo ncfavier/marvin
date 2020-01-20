@@ -1,13 +1,9 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Assembler where
 
 import Control.Monad.State
-import Control.Monad.Writer
 import Data.Bits
 import Data.Char
 import Data.List
@@ -20,20 +16,18 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import System.Environment
 import System.Exit
 
-instance (Stream s, MonadWriter w m) => MonadWriter w (ParsecT e s m) where
-    tell = lift . tell
-    listen = undefined
-    pass = undefined
-
 data Environment = Environment { vars :: Map String Integer
                                , pos  :: Integer
                                }
 
 initialEnvironment = Environment M.empty 0
 
-data W = Int Integer | Var String
+data V = Int Integer | Var String
+data W = Ins Integer | Imm V | Mem V | Reg String
 
-type Parser = ParsecT Void String (WriterT [W] (State Environment))
+type Parser = ParsecT Void String (State Environment)
+
+wordSize = 42
 
 usage = do
     progName <- getProgName
@@ -45,16 +39,21 @@ main = do
         [f] -> Just f
         _ -> Nothing
     input <- readFile f
-    let ((r, output), Environment { vars }) = flip runState initialEnvironment
-                                            $ runWriterT
-                                            $ runParserT file f
-                                            $ input
-    either (die . errorBundlePretty) pure r
-    print 42 -- word size
+    let (r, Environment { vars }) = flip runState initialEnvironment
+                                  $ runParserT file f
+                                  $ input
+    output <- either (die . errorBundlePretty) return r
+    print wordSize -- word size
     print 2048 -- ram size
-    let printWord (Int i) = print i
-        printWord (Var v) = print (vars M.! v)
-    mapM_ printWord output
+    let makeWord (Ins i) = i
+        makeWord (Imm v) = getValue v `shiftL` 2
+        makeWord (Mem v) = getValue v `shiftL` 2 .|. bit 0
+        makeWord (Reg "a") = bit 2 .|. bit 1
+        makeWord (Reg "b") = bit 3 .|. bit 1
+        makeWord (Reg r) = error $ "invalid register " ++ r
+        getValue (Int i) = i
+        getValue (Var v) = vars M.! v
+    mapM_ (print . makeWord) output
 
 whitespace = L.space (skipSome (oneOf " \t")) (L.skipLineComment ";") empty
 
@@ -65,55 +64,65 @@ integer = lexeme L.decimal
 
 ident = lexeme $ some $ satisfy (\c -> isLetter c || c == '_')
 
-emit l = do
-    tell l
-    modify' $ \e -> e { pos = pos e + genericLength l }
+emit l = l <$ modify' (\e -> e { pos = pos e + genericLength l })
 
-file :: Parser ()
-file = many (line >> eol) >> eof
+file :: Parser [W]
+file = concat <$> many (line <* eol) <* eof
 
 line = do
     whitespace
-    optional $ try assignment <|> try label <|> instruction
+    option [] $ try assignment <|> try label <|> instruction
 
 assignment = do
     x <- ident
     symbol "="
     v <- integer
     modify' $ \e -> e { vars = M.insert x v (vars e) }
+    return []
 
 label = do
     l <- ident
     symbol ":"
     modify' $ \e -> e { vars = M.insert l (pos e) (vars e) }
-
-operand = Int <$> integer <|> Var <$> ident
+    return []
 
 instruction = do
     ins <- ident
     ops <- many operand
-    emit $ take 3 $ Int (code M.! ins):ops ++ repeat (Int 0)
+    let ops' | ins `elem` ["inc", "dec"] = Ins 0:ops
+             | otherwise = ops
+    emit $ take 3 $ Ins (code M.! ins):ops' ++ repeat (Ins 0)
+
+operand = Reg <$> register <|> Mem <$> mem <|> Imm <$> value
+
+register = char '%' >> ident
+
+mem = char '*' >> value
+
+value = Int <$> integer <|> Var <$> ident
 
 code = M.fromList
-    [ ("lda", ram_out .|. a_in)
-    , ("sta", a_out .|. ram_in)
-    , ("ldb", ram_out .|. b_in)
-    , ("stb", b_out .|. ram_in)
-    , ("add", add_out .|. a_in)
-    , ("sub", add_out .|. sub .|. a_in)
+    [ ("mov", mov)
+    , ("add", mov .|. addsub)
+    , ("sub", mov .|. addsub .|. sub)
+    , ("inc", mov .|. inc)
+    , ("dec", mov .|. dec)
+    , ("mul", mov .|. mul)
+    , ("div", mov .|. divmod)
+    , ("mod", mov .|. divmod .|. mod)
     , ("jmp", jump)
     , ("jz",  jump .|. zero)
     , ("jl",  jump .|. less)
     ]
     where {
-        [ a_in
-        , a_out
-        , b_in
-        , b_out
-        , ram_in
-        , ram_out
-        , add_out
+        [ mov
+        , addsub
         , sub
+        , inc
+        , dec
+        , mul
+        , divmod
+        , mod
         , jump
         , zero
         , less

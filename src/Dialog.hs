@@ -33,7 +33,7 @@ main = do
             | Just n' <- readMaybe @Integer n -> Just ([1..n'], f)
         [f] -> Just ([1..], f)
         _ -> Nothing
-    netlist@Netlist{..} <- either die pure . readEither @Netlist =<< readFile f
+    netlist@Netlist{..} <- readNetlist f
     m <- newMachine netlist
     forM_ steps \i -> do
         printf "Step %d:\n" i

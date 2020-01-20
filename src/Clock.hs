@@ -41,7 +41,7 @@ main = do
     let async = Async `elem` opts
 
     -- Read and parse the netlist
-    netlist@Netlist{..} <- either die pure . readEither @Netlist =<< readFile f
+    netlist@Netlist{..} <- readNetlist f
 
     -- Create a machine
     m <- newMachine netlist

@@ -95,7 +95,7 @@ Certains emplacements en mémoire sont utilisés pour l'entrée-sortie :
 
 Le programme assembleur de l'horloge se trouve dans `clock.asm`, et doit être compilé vers `ram.img`.
 
-L'horloge supporte les années bissextiles, mais pas les secondes intercalaires (ou alors c'est vraiment pas fait exprès).
+L'horloge tient compte des années bissextiles.
 
 ## TL;DR
 
