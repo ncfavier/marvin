@@ -1,9 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Netlist where
 
 import Control.Monad
 import Control.Monad.State
+import Data.Array.IArray
 import Data.Bool
 import Data.Char
 import Data.Map (Map)
@@ -14,7 +16,7 @@ import Text.Megaparsec hiding (State)
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-type Variable = String
+type Variable = Int
 
 newtype Value = Value [Bool]
 
@@ -44,15 +46,13 @@ data Expression = Earg Argument
 
 data Netlist = Netlist { invars    :: [Variable]
                        , outvars   :: [Variable]
-                       , vars      :: Map Variable Int
-                       , equations :: Map Variable Expression
+                       , vars      :: Array Variable (String, Int)
+                       , equations :: Array Variable Expression
                        }
 
-data Environment = Environment { names :: Map String Variable
-                               , next  :: Int
-                               }
+data Environment = Environment { names :: Map String Variable }
 
-initialEnvironment = Environment M.empty 0
+initialEnvironment = Environment M.empty
 
 type Parser = ParsecT Void String (State Environment)
 
@@ -80,14 +80,20 @@ netlist :: Parser Netlist
 netlist = do
     whitespace
     symbol "INPUT"
-    invars <- lexeme ident `sepBy` symbol ","
+    invars' <- lexeme ident `sepBy` symbol ","
     symbol "OUTPUT"
-    outvars <- lexeme ident `sepBy` symbol ","
+    outvars' <- lexeme ident `sepBy` symbol ","
     symbol "VAR"
-    vars <- M.fromList <$> varAndSize `sepBy` symbol ","
+    varsAndSizes <- varAndSize `sepBy` symbol ","
+    let nVars = length varsAndSizes
+    let names = M.fromList [(x, i) | (i, (x, _)) <- zip [0..] varsAndSizes]
+    modify' $ \e -> e { names }
     symbol "IN"
-    equations <- M.fromList . concat <$> many (lineWhitespace >> option [] equation <* eol)
+    equations <- array (0, nVars - 1) . concat <$> many (lineWhitespace >> option [] equation <* eol)
     eof
+    let invars = map (names M.!) invars'
+        outvars = map (names M.!) outvars'
+        vars = listArray (0, nVars - 1) varsAndSizes
     return Netlist{..}
 
 varAndSize = do
@@ -96,7 +102,7 @@ varAndSize = do
     return (x, size)
 
 equation = do
-    x <- lineLexeme ident
+    x <- variable
     lineSymbol "="
     exp <- expression
     return [(x, exp)]
@@ -106,7 +112,12 @@ value = do
              <|> True <$ satisfy (\c -> c == '1' || c == 't')
     return (Value l)
 
-argument = Avar <$> try (lineLexeme ident) <|> Aconst <$> lineLexeme value
+variable = do
+    v <- lineLexeme ident
+    names <- gets names
+    return (names M.! v)
+
+argument = Avar <$> try variable <|> Aconst <$> lineLexeme value
 
 integer = L.decimal
 
@@ -114,7 +125,7 @@ expArg = try $ Earg <$> argument
 
 expReg = try $ do
     "REG" <- lineLexeme ident
-    Ereg <$> lineLexeme ident
+    Ereg <$> variable
 
 expNot = try $ do
     "NOT" <- lineLexeme ident

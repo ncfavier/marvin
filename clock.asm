@@ -37,16 +37,34 @@ loop:
     sub 2 %a
     jz february
     add 2 %a
-    mov 31 %b ; if (month & 1) ^ (month & 8), 32
-    ; add 1? %b
+    mov %a %c
+    and 8 %a
+    test %a %a
+    and 1 %c
+    test %c %c
+    xor %a %c
+    and 31 %c
     jmp end_february
 february:
-    mov 29 %b ; if leap year, sub 30
+    mov 29 %c
+    mov *year %b
+    mov %b %a
+    mod 4 %a
+    jnz end_february
+    mov 30 %c
+    mov %b %a
+    mod 100 %a
+    jnz end_february
+    mov 29 %c
+    mov %b %a
+    mod 400 %a
+    jnz end_february
+    mov 30 %c
 end_february:
     mov *day %a
     inc %a
     mov %a *day
-    sub %b %a
+    sub %c %a
     jl loop
     inc %a
     mov %a *day

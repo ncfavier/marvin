@@ -7,18 +7,14 @@ module Simulator where
 import Control.Exception
 import Control.Monad
 import Data.Array.IArray
-import Data.Array.IO
 import Data.Array.MArray
+import Data.Array.IO
 import Data.Array.Unboxed
 import Data.Bool
 import Data.Bits
 import Data.IORef
 import Data.List
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Set (Set)
-import qualified Data.Set as S
 import System.IO
 import System.IO.Error
 import Text.Printf
@@ -39,12 +35,12 @@ bitsFromInteger s n = [testBit n i | i <- [s' - 1, s' - 2..0]]
 
 whenM c a = do c <- c; when c a
 
-data Machine = Machine { netlist  :: Netlist
-                       , ram      :: IOUArray Int Bool
-                       , rom      :: UArray Int Bool
-                       , env      :: IORef (Map Variable [Bool])
-                       , oldEnv   :: IORef (Map Variable [Bool])
-                       , roots    :: [Variable]
+data Machine = Machine { netlist :: Netlist
+                       , ram     :: IOUArray Int Bool
+                       , rom     :: UArray Int Bool
+                       , env     :: IOArray Variable [Bool]
+                       , fresh   :: IORef (IOUArray Variable Bool)
+                       , roots   :: [Variable]
                        }
 
 readImage f = do
@@ -60,21 +56,24 @@ newMachine netlist@Netlist{..} = do
     ram <- newListArray @IOUArray (0, ramSize - 1) (ramBits ++ repeat False)
     (romBits, romSize) <- readImage "rom.img"
     let rom = listArray @UArray (0, romSize - 1) (romBits ++ repeat False)
-    env <- newIORef M.empty
-    oldEnv <- newIORef $ M.map (\s -> replicate s False) vars
-    let ramvars = [x | (x, Eram{}) <- M.assocs equations]
-        regvars = [x | (_, Ereg x) <- M.assocs equations]
+        varBounds = bounds vars
+    env <- newListArray varBounds [replicate s False | (_, s) <- elems vars]
+    fresh <- newIORef =<< newArray varBounds False
+    let ramvars = [x | (x, Eram{}) <- assocs equations]
+        regvars = [x | (_, Ereg x) <- assocs equations]
         roots = nub (ramvars ++ regvars ++ invars ++ outvars)
     return Machine{..}
 
 getVariable m@Machine{..} x = do
-    computed <- M.member x <$> readIORef env
-    unless computed $ compute m x
-    (M.! x) <$> readIORef env
+    fresh <- readIORef fresh
+    fresh' <- readArray fresh x
+    unless fresh' $ compute m x
+    readArray env x
 
-printVariable m@Machine{..} x = do
+printVariable m@Machine{ netlist = Netlist{..}, .. } x = do
     v <- getVariable m x
-    printf "==> %s = %d\n" x (bitsToInteger v :: Integer)
+    let (n, _) = vars ! x
+    printf "==> %s = %d\n" n (bitsToInteger v :: Integer)
 
 readRam Machine{..} s ra = mapM (readArray ram) [ra*s..(ra + 1)*s - 1]
 
@@ -83,9 +82,9 @@ writeRam Machine{..} s wa w = zipWithM_ (writeArray ram) [wa*s..(wa + 1)*s - 1] 
 readRom Machine{..} s ra = map (rom !) [ra*s..(ra + 1)*s - 1]
 
 compute m@Machine{ netlist = Netlist{..}, .. } x = do
-    v <- case equations M.! x of
+    v <- case equations ! x of
         Earg a       -> arg a
-        Ereg x       -> (M.! x) <$> readIORef oldEnv
+        Ereg x       -> readArray env x
         Enot a       -> map not <$> arg a
         Eor a b      -> zipWith (||) <$> arg a <*> arg b
         Exor a b     -> zipWith (/=) <$> arg a <*> arg b
@@ -100,15 +99,19 @@ compute m@Machine{ netlist = Netlist{..}, .. } x = do
             r <- readRam m s . bitsToInteger =<< arg ra
             r <$ whenM (or <$> arg we) do
                 join $ writeRam m s . bitsToInteger <$> arg wa <*> arg w
-    modifyIORef' env $ M.insert x v
+    writeArray env x v
+    fresh <- readIORef fresh
+    writeArray fresh x True
     where
         arg (Aconst (Value l)) = return l
         arg (Avar x)           = getVariable m x
 
 runStep m@Machine{ netlist = Netlist{..}, .. } getValue = do
-    writeIORef env M.empty
+    writeIORef fresh =<< newArray (bounds vars) False
     forM_ invars \x -> do
-        v <- getValue x (vars M.! x)
-        modifyIORef' env $ M.insert x v
+        let (n, s) = vars ! x
+        v <- getValue n s
+        writeArray env x v
+        fresh <- readIORef fresh
+        writeArray fresh x True
     forM_ roots \x -> getVariable m x
-    writeIORef oldEnv =<< readIORef env

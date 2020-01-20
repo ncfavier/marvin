@@ -50,6 +50,8 @@ main = do
         makeWord (Mem v) = getValue v `shiftL` 2 .|. bit 0
         makeWord (Reg "a") = bit 2 .|. bit 1
         makeWord (Reg "b") = bit 3 .|. bit 1
+        makeWord (Reg "c") = bit 4 .|. bit 1
+        makeWord (Reg "d") = bit 5 .|. bit 1
         makeWord (Reg r) = error $ "invalid register " ++ r
         getValue (Int i) = i
         getValue (Var v) = vars M.! v
@@ -102,17 +104,25 @@ mem = char '*' >> value
 value = Int <$> integer <|> Var <$> ident
 
 code = M.fromList
-    [ ("mov", mov)
-    , ("add", mov .|. addsub)
-    , ("sub", mov .|. addsub .|. sub)
-    , ("inc", mov .|. inc)
-    , ("dec", mov .|. dec)
-    , ("mul", mov .|. mul)
-    , ("div", mov .|. divmod)
-    , ("mod", mov .|. divmod .|. mod)
-    , ("jmp", jump)
-    , ("jz",  jump .|. zero)
-    , ("jl",  jump .|. less)
+    [ ("mov",  mov)
+    , ("add",  mov .|. addsub)
+    , ("sub",  mov .|. addsub .|. sub)
+    , ("inc",  mov .|. inc)
+    , ("dec",  mov .|. dec)
+    , ("mul",  mov .|. mul)
+    , ("div",  mov .|. divmod)
+    , ("mod",  mov .|. divmod .|. mod)
+    , ("not",  mov .|. not)
+    , ("and",  mov .|. and)
+    , ("or",   mov .|. or)
+    , ("xor",  mov .|. xor)
+    , ("test", mov .|. test)
+    , ("jmp",  jump)
+    , ("jz",   jump .|. zero)
+    , ("jnz",  jump .|. zero .|. inv)
+    , ("jl",   jump .|. less)
+    , ("jnl",  jump .|. less .|. inv)
+    , ("jge",  jump .|. less .|. inv)
     ]
     where {
         [ mov
@@ -123,8 +133,14 @@ code = M.fromList
         , mul
         , divmod
         , mod
+        , not
+        , and
+        , or
+        , xor
+        , test
         , jump
         , zero
         , less
-        ] = bit <$> [0..10]
+        , inv
+        ] = bit <$> [0..16]
     }

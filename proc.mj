@@ -90,13 +90,47 @@ divmod<n>(a:[n], b:[n], mod) = o:[n] where
     o = mux<1, n>(mod, r, q);
 end where
 
+not_n<n>(a:[n]) = o:[n] where
+    if n = 0 then
+        o = []
+    else
+        o = not(a[0]) . not_n<n - 1>(a[1..])
+    end if
+end where
+
+and_n<n>(a:[n], b:[n]) = o:[n] where
+    if n = 0 then
+        o = []
+    else
+        o = a[0] & b[0] . and_n<n - 1>(a[1..], b[1..])
+    end if
+end where
+
+or_n<n>(a:[n], b:[n]) = o:[n] where
+    if n = 0 then
+        o = []
+    else
+        o = a[0] + b[0] . or_n<n - 1>(a[1..], b[1..])
+    end if
+end where
+
+xor_n<n>(a:[n], b:[n]) = o:[n] where
+    if n = 0 then
+        o = []
+    else
+        o = a[0] ^ b[0] . xor_n<n - 1>(a[1..], b[1..])
+    end if
+end where
+
 (* Processor *)
 
-decode_operand(ins:[WORD]) = (mem, a, b, imm:[WORD]) where
+decode_operand(ins:[WORD]) = (mem, a, b, c, d, imm:[WORD]) where
     mem = signal<WORD, 0>(ins);
     r = signal<WORD, 1>(ins);
     a = r & signal<WORD, 2>(ins);
     b = r & signal<WORD, 3>(ins);
+    c = r & signal<WORD, 4>(ins);
+    d = r & signal<WORD, 5>(ins);
     imm = 00 . ins[..WORD - 3];
 end where
 
@@ -108,6 +142,8 @@ main() = () where
     pc_reg = reg(pc);
     a_reg = reg(a);
     b_reg = reg(b);
+    c_reg = reg(c);
+    d_reg = reg(d);
 
     (* Flags *)
     flag_zero = mux<WORD, 1>(a_reg, false, true);
@@ -130,45 +166,67 @@ main() = () where
     signal_mul    = signal<WORD,  5>(ins0);
     signal_divmod = signal<WORD,  6>(ins0);
     signal_mod    = signal<WORD,  7>(ins0);
-    signal_jump   = signal<WORD,  8>(ins0);
-    signal_zero   = signal<WORD,  9>(ins0);
-    signal_less   = signal<WORD, 10>(ins0);
+    signal_not    = signal<WORD,  8>(ins0);
+    signal_and    = signal<WORD,  9>(ins0);
+    signal_or     = signal<WORD, 10>(ins0);
+    signal_xor    = signal<WORD, 11>(ins0);
+    signal_test   = signal<WORD, 12>(ins0);
+    signal_jump   = signal<WORD, 13>(ins0);
+    signal_zero   = signal<WORD, 14>(ins0);
+    signal_less   = signal<WORD, 15>(ins0);
+    signal_inv    = signal<WORD, 16>(ins0);
 
-    (op1_mem, op1_a, op1_b, op1_imm) = decode_operand(ins1);
+    (op1_mem, op1_a, op1_b, op1_c, op1_d, op1_imm) = decode_operand(ins1);
     op1 = mux<1, WORD>(op1_mem, ram_out,
           mux<1, WORD>(op1_a, a_reg,
           mux<1, WORD>(op1_b, b_reg,
-          op1_imm)));
+          mux<1, WORD>(op1_c, c_reg,
+          mux<1, WORD>(op1_d, d_reg,
+          op1_imm)))));
 
-    (op2_mem, op2_a, op2_b, op2_imm) = decode_operand(ins2);
+    (op2_mem, op2_a, op2_b, op2_c, op2_d, op2_imm) = decode_operand(ins2);
     op2 = mux<1, WORD>(op2_a, a_reg,
           mux<1, WORD>(op2_b, b_reg,
-          op2_imm));
+          mux<1, WORD>(op2_c, c_reg,
+          mux<1, WORD>(op2_d, d_reg,
+          op2_imm))));
 
     (* RAM *)
     ram_out = ram<WORD, WORD>(op1_imm, signal_mov & op2_mem, op2_imm, op1);
 
     (* ALU *)
     addsub_out = addsub<WORD>(op2, op1, signal_sub);
-    mul_out = mul<WORD>(op2, op1);
+    inc_out    = increment<WORD>(op2);
+    dec_out    = decrement<WORD>(op2);
+    mul_out    = mul<WORD>(op2, op1);
     divmod_out = divmod<WORD>(op2, op1, signal_mod);
-    inc_out = increment<WORD>(op2);
-    dec_out = decrement<WORD>(op2);
+    not_out    = not_n<WORD>(op1);
+    and_out    = and_n<WORD>(op2, op1);
+    or_out     = or_n<WORD>(op2, op1);
+    xor_out    = xor_n<WORD>(op2, op1);
+    test_out   = replicate<WORD - 1>(0) . mux<WORD, 1>(op1, 1, 0);
 
     (* Bus *)
     bus = mux<1, WORD>(signal_addsub, addsub_out,
-          mux<1, WORD>(signal_inc, inc_out,
-          mux<1, WORD>(signal_dec, dec_out,
-          mux<1, WORD>(signal_mul, mul_out,
+          mux<1, WORD>(signal_inc,    inc_out,
+          mux<1, WORD>(signal_dec,    dec_out,
+          mux<1, WORD>(signal_mul,    mul_out,
           mux<1, WORD>(signal_divmod, divmod_out,
-          op1)))));
+          mux<1, WORD>(signal_not,    not_out,
+          mux<1, WORD>(signal_and,    and_out,
+          mux<1, WORD>(signal_or,     or_out,
+          mux<1, WORD>(signal_xor,    xor_out,
+          mux<1, WORD>(signal_test,   test_out,
+          op1))))))))));
 
     (* Update registers *)
     a = mux<1, WORD>(signal_mov & op2_a, bus, a_reg);
     b = mux<1, WORD>(signal_mov & op2_b, bus, b_reg);
+    c = mux<1, WORD>(signal_mov & op2_c, bus, c_reg);
+    d = mux<1, WORD>(signal_mov & op2_d, bus, d_reg);
 
     (* Jump *)
-    jump = signal_jump & (not(signal_less) + flag_sign)
-                       & (not(signal_zero) + flag_zero);
+    jump = signal_jump & (not(signal_less) + (signal_inv ^ flag_sign))
+                       & (not(signal_zero) + (signal_inv ^ flag_zero));
     pc = mux<1, WORD>(jump, op1, pc3);
 end where
