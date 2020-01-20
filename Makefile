@@ -20,7 +20,7 @@ clock:
 assembler:
 	ghc -isrc -outputdir build $(GHCFLAGS) -o $@ -main-is Assembler src/Assembler.hs
 
-minijazz/mjc.byte:
+minijazz/mjc.byte: minijazz/analysis/*
 	cd minijazz && ocamlbuild mjc.byte
 
 proc.net: proc.mj minijazz/mjc.byte
@@ -35,4 +35,4 @@ clean:
 
 .PHONY: archive
 archive:
-	git archive --prefix=scapin/ -o scapin.tar.gz HEAD
+	git archive -v --prefix=scapin/ -o scapin.tar.gz HEAD

@@ -4,50 +4,83 @@ const WORD = 42
 
 (* Utilities *)
 
-add1(a, b, c) = (s, r) where
-    x = a ^ b;
-    s = x ^ c;
-    r = (a & b) + (x & c);
+signal<n, i>(ins:[n]) = s where
+    s = ins[(n - 1) - i];
 end where
 
-add<n>(a:[n], b:[n], sub, c_in) = (o:[n], c_out) where
-    if n = 1 then
-        (o, c_out) = add1(a, b ^ sub, c_in);
+replicate<n>(b) = o:[n] where
+    if n = 0 then
+        o = []
     else
-        (s_n1, c_n1) = add<n-1>(a[1..], b[1..], sub, c_in);
-        (s_n, c_out) = add1(a[0], b[0] ^ sub, c_n1);
-        o = s_n . s_n1
+        o = b . replicate<n - 1>(b)
     end if
 end where
 
-carry1(a, c) = (s, r) where
-    s = a ^ c;
-    r = a & c;
-end where
-
-carry<n, i>(a:[n], c_in) = o:[i + 1] where
-    if i = 0 then
-        (o, c) = carry1(a[i], c_in);
+increment_i<n, i>(a:[n], c_in) = o:[n - i] where
+    if i = n then
+        o = [];
     else
-        (s, c) = carry1(a[i], c_in);
-        o_n1 = carry<n, i - 1>(a, c);
-        o = o_n1 . s;
+        ai = a[(n - 1) - i];
+        o = increment_i<n, i + 1>(a, ai & c_in) . ai ^ c_in;
     end if
 end where
 
 increment<n>(a:[n]) = o:[n] where
-    o = carry<n, n - 1>(a, 1);
+    o = increment_i<n, 0>(a, 1);
 end where
 
-signal<n, i>(ins:[n]) = s where
-    s = ins[(n - 1) - i];
+add_i<n, i>(a:[n], b:[n], sub, c_in) = o:[n - i] where
+    if i = n then
+        o = [];
+    else
+        ai = a[(n - 1) - i];
+        bi = b[(n - 1) - i] ^ sub;
+        x = ai ^ bi;
+        o = add_i<n, i + 1>(a, b, sub, (ai & bi) + (x & c_in)) . x ^ c_in;
+    end if
+end where
+
+add<n>(a:[n], b:[n], sub) = o:[n] where
+    o = add_i<n, 0>(a, b, sub, sub);
+end where
+
+mul_i<n, i>(a:[n], b:[n]) = o:[n] where
+    if i = n then
+        o = replicate<n>(0);
+    else
+        oi1 = mul_i<n, i + 1>(a, b);
+        s = add<n>(oi1, a[i..] . replicate<i>(0), false);
+        o = mux<1, n>(b[i], s, oi1);
+    end if
+end where
+
+mul<n>(a:[n], b:[n]) = o:[n] where
+    o = mul_i<n, 0>(a, b);
+end where
+
+divmod_i<n, i>(a:[n], b:[n]) = (q:[n - i], r:[n - i]) where
+    if i = n then
+        q = [];
+        r = [];
+    else
+        (qi1, ri1) = divmod_i<n, i + 1>(a, b);
+        r1 = ri1 . a[(n - 1) - i];
+        d = add<n>(replicate<i>(0) . r1, b, true);
+        l = d[0];
+        r = mux<1, n - i>(l, r1, d[i..]);
+        q = qi1 . not(l);
+    end if
+end where
+
+divmod<n>(a:[n], b:[n]) = (q:[n], r:[n]) where
+    (q, r) = divmod_i<n, 0>(a, b);
 end where
 
 (* Main *)
 
 main() = () where
-    (* Constant nodes *)
-    zero = 000000000000000000000000000000000000000000;
+    (* Constants *)
+    zero = replicate<WORD>(0);
 
     (* Registers *)
     pc_reg = reg(pc);
@@ -78,7 +111,7 @@ main() = () where
     ram_out = ram<WORD, WORD>(op, signal_ram_in, op, a_reg);
 
     (* Arithmetic *)
-    (add_out, c) = add<WORD>(a_reg, op, signal_sub, signal_sub);
+    add_out = add<WORD>(a_reg, op, signal_sub);
 
     (* Bus *)
     bus = mux<1, WORD>(signal_ram_out, ram_out,
