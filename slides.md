@@ -1,5 +1,5 @@
 ---
-title: marvin
+title: MARVIN
 subtitle: \'Marvin\' est un Acronyme Récursif Vaguement INtrospectif
 author: Naïm Favier
 date: 21 janvier 2020
@@ -9,7 +9,9 @@ header-includes: |
 
 # Simulateur
 
-- interface « texte » du simulateur : lit les variables d'entrée au clavier et affiche les variables de sortie
+- deux interfaces :
+    - « dialogue » : lit les variables d'entrée au clavier et affiche les variables de sortie
+    - « horloge » : gère l'affichage de l'horloge et la synchronisation
 - on ne calcule que ce qui est nécessaire :
     - variables de sortie
     - registres (`... = REG x`)
@@ -44,7 +46,6 @@ header-includes: |
 
 # Horloge
 
-- interface « horloge » du simulateur : gère l'affichage de l'horloge et la synchronisation
 - emplacements mémoire réservés pour la communication avec le simulateur :
     - 1024-1029 : secondes, minutes, heures, jours, mois, années
     - 1030 : mode synchrone ?
