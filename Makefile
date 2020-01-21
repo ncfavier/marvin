@@ -1,5 +1,8 @@
 GHCFLAGS := $(GHCFLAGS) -O2
 
+slides.pdf: slides.md
+	pandoc -t beamer -i -o $@ $<
+
 .PHONY: run
 run: dialog ram.img
 	./dialog $(if $(steps),-n $(steps),) $(netlist)
