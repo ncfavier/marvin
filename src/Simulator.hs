@@ -36,13 +36,13 @@ bitsFromInteger s n = [testBit n i | i <- [s' - 1, s' - 2..0]]
 
 whenM c a = do c <- c; when c a
 
-data Machine = Machine { netlist   :: Netlist
-                       , ram       :: IOUArray Int Bool
-                       , rom       :: UArray Int Bool
-                       , env       :: IOArray Variable [Bool]
-                       , states    :: IORef (IOArray Variable State)
-                       , roots     :: [Variable]
-                       , input     :: String -> Int -> IO [Bool]
+data Machine = Machine { netlist :: Netlist
+                       , ram     :: IOUArray Int Bool
+                       , rom     :: UArray Int Bool
+                       , env     :: IOArray Variable [Bool]
+                       , states  :: IORef (IOArray Variable State)
+                       , roots   :: [Variable]
+                       , input   :: String -> Int -> IO [Bool]
                        }
 
 data State = Old | InProgress | New
